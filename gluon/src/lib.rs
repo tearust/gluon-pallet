@@ -16,7 +16,7 @@ use frame_support::{
     StorageMap, StorageValue, ensure,
     traits::{Currency,  ExistenceRequirement::AllowDeath}};
 use sp_std::prelude::*;
-use sp_core::ed25519;
+use sp_core::sr25519;
 use pallet_balances as balances;
 use sp_runtime::traits::Verify;
 use sha2::{Sha256, Digest};
@@ -279,7 +279,6 @@ decl_module! {
 		) -> dispatch::DispatchResult {
             let sender = ensure_signed(origin)?;
             ensure!(!AppBrowserPair::<T>::contains_key(&sender), Error::<T>::AppBrowserPairAlreadyExist);
-            ensure!(nonce_signature.len() == 64, Error::<T>::InvalidNonceSig);
 
             // check signature of appPubKey
             let mut app_pk = [0u8; 32];
@@ -736,10 +735,10 @@ impl<T: Trait> Module<T> {
     }
 
     pub fn verify_signature(public_key: [u8; 32], nonce_signature: Vec<u8>, data: Vec<u8> ) -> bool {
-        let pubkey = ed25519::Public(public_key);
+        let pubkey = sr25519::Public(public_key);
         let mut bytes = [0u8; 64];
         bytes.copy_from_slice(&nonce_signature);
-        let signature = ed25519::Signature::from_raw(bytes);
+        let signature = sr25519::Signature::from_raw(bytes);
         return signature.verify(&data[..], &pubkey);
     }
 }
