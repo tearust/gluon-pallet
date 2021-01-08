@@ -16,9 +16,7 @@ use frame_support::{
     StorageMap, StorageValue, ensure,
     traits::{Currency,  ExistenceRequirement::AllowDeath}};
 use sp_std::prelude::*;
-use sp_core::sr25519;
 use pallet_balances as balances;
-use sp_runtime::traits::Verify;
 use sha2::{Sha256, Digest};
 
 #[cfg(test)]
@@ -274,25 +272,10 @@ decl_module! {
 		pub fn send_registration_application(
 		    origin,
 		    nonce: Cid,
-            nonce_signature: Signature,
             browser_pk: ClientPubKey,
 		) -> dispatch::DispatchResult {
             let sender = ensure_signed(origin)?;
             ensure!(!AppBrowserPair::<T>::contains_key(&sender), Error::<T>::AppBrowserPairAlreadyExist);
-
-            // check signature of appPubKey
-            let mut app_pk = [0u8; 32];
-            let app_public_key_bytes = Self::account_to_bytes(&sender);
-            match app_public_key_bytes {
-                Ok(p) => {
-                    app_pk = p;
-                }
-                Err(_e) => {
-                    debug::info!("failed to parse app account");
-                    Err(Error::<T>::AccountIdConvertionError)?
-                }
-            }
-            ensure!(Self::verify_signature(app_pk, nonce_signature, nonce.clone()), Error::<T>::InvalidNonceSig);
 
             // check browser is not paired.
             let mut browser_account = T::AccountId::default();
@@ -353,7 +336,6 @@ decl_module! {
         pub fn generate_account_without_p3 (
            origin,
            nonce: Cid,
-           nonce_signature: Cid,
            delegator_nonce_hash: Cid,
            delegator_nonce_rsa: Cid,
            key_type: Cid,
@@ -363,7 +345,6 @@ decl_module! {
            browser_pk: ClientPubKey,
         ) -> dispatch::DispatchResult {
             let sender = ensure_signed(origin)?;
-            ensure!(nonce_signature.len() == 64, Error::<T>::InvalidNonceSig);
 
             // check browser is not paired.
             let mut browser_account = T::AccountId::default();
@@ -379,20 +360,6 @@ decl_module! {
             }
             ensure!(BrowserAccountNonce::<T>::contains_key(&browser_account), Error::<T>::NonceNotExist);
 
-            // check signature of appPubKey
-            let mut app_pk = [0u8; 32];
-            let app_public_key_bytes = Self::account_to_bytes(&sender);
-            match app_public_key_bytes {
-                Ok(p) => {
-                    app_pk = p;
-                }
-                Err(_e) => {
-                    debug::info!("failed to parse app account");
-                    Err(Error::<T>::AccountIdConvertionError)?
-                }
-            }
-            ensure!(Self::verify_signature(app_pk, nonce_signature, nonce.clone()), Error::<T>::InvalidNonceSig);
-
             // check task hash
             let task = AccountGenerationDataWithoutP3 {
                 key_type: key_type.clone(),
@@ -402,12 +369,10 @@ decl_module! {
                 delegator_nonce_rsa: delegator_nonce_rsa,
                 p1: p1,
             };
-            let task_data = task.encode();
-            let task_hash = Self::sha2_256(&task_data);
             let app_nonce_hash = Self::sha2_256(&nonce.as_slice());
             let (block_number, browser_nonce_hash, browser_task_hash) = BrowserAccountNonce::<T>::get(&browser_account);
             ensure!(browser_nonce_hash == app_nonce_hash, Error::<T>::NonceNotMatch);
-            ensure!(browser_task_hash == task_hash, Error::<T>::TaskNotMatch);
+            // ensure!(browser_task_hash == task_hash, Error::<T>::TaskNotMatch);
 
             let current_block_number = <frame_system::Module<T>>::block_number();
             if current_block_number - block_number > TASK_TIMEOUT_PERIOD.into() {
@@ -417,9 +382,9 @@ decl_module! {
             }
 
             // account generation requested and fire an event
-            AccountGenerationTaskDelegator::insert(task_hash.to_vec(), delegator_nonce_hash.clone());
+            AccountGenerationTaskDelegator::insert(browser_task_hash.to_vec(), delegator_nonce_hash.clone());
             BrowserAccountNonce::<T>::remove(&browser_account);
-            Self::deposit_event(RawEvent::AccountGenrationRequested(sender, task_hash.to_vec(), task));
+            Self::deposit_event(RawEvent::AccountGenrationRequested(sender, browser_task_hash.to_vec(), task));
 
             Ok(())
         }
@@ -734,11 +699,11 @@ impl<T: Trait> Module<T> {
         output
     }
 
-    pub fn verify_signature(public_key: [u8; 32], nonce_signature: Vec<u8>, data: Vec<u8> ) -> bool {
-        let pubkey = sr25519::Public(public_key);
-        let mut bytes = [0u8; 64];
-        bytes.copy_from_slice(&nonce_signature);
-        let signature = sr25519::Signature::from_raw(bytes);
-        return signature.verify(&data[..], &pubkey);
-    }
+    // pub fn verify_signature(public_key: [u8; 32], nonce_signature: Vec<u8>, data: Vec<u8> ) -> bool {
+    //     let pubkey = sr25519::Public(public_key);
+    //     let mut bytes = [0u8; 64];
+    //     bytes.copy_from_slice(&nonce_signature);
+    //     let signature = sr25519::Signature::from_raw(bytes);
+    //     return signature.verify(&data[..], &pubkey);
+    // }
 }
