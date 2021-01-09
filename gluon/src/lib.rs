@@ -16,7 +16,9 @@ use frame_support::{
     StorageMap, StorageValue, ensure,
     traits::{Currency,  ExistenceRequirement::AllowDeath}};
 use sp_std::prelude::*;
+use sp_core::sr25519;
 use pallet_balances as balances;
+use sp_runtime::traits::Verify;
 use sha2::{Sha256, Digest};
 
 #[cfg(test)]
@@ -216,6 +218,7 @@ decl_error! {
         SenderIsNotBuildInAccount,
         SenderAlreadySigned,
         TransferAssetTaskTimeout,
+        BrowserTaskALreadyExist,
         BrowserNonceAlreadyExist,
         AppBrowserPairAlreadyExist,
         NonceNotMatch,
@@ -257,7 +260,7 @@ decl_module! {
 		    nonce_hash: Cid,
 		) -> dispatch::DispatchResult {
 		    let sender = ensure_signed(origin)?;
-            ensure!(!BrowserNonce::<T>::contains_key(&sender), Error::<T>::BrowserNonceAlreadyExist);
+            // ensure!(!BrowserNonce::<T>::contains_key(&sender), Error::<T>::BrowserNonceAlreadyExist);
             ensure!(!BrowserAppPair::<T>::contains_key(&sender), Error::<T>::AppBrowserPairAlreadyExist);
 
              // insert into BrowserNonce and fire an event
@@ -291,6 +294,7 @@ decl_module! {
             }
             ensure!(!BrowserAppPair::<T>::contains_key(&browser_account), Error::<T>::AppBrowserPairAlreadyExist);
             ensure!(BrowserNonce::<T>::contains_key(&browser_account), Error::<T>::NonceNotExist);
+            // todo check task hash
 
             let app_nonce_hash = Self::sha2_256(&nonce.as_slice());
             let (block_number, browser_nonce_hash) = BrowserNonce::<T>::get(&browser_account);
@@ -320,9 +324,9 @@ decl_module! {
             nonce_hash: Cid,
             task_hash: Cid,
         ) -> dispatch::DispatchResult {
-            // todo add logic of timeout
             let sender = ensure_signed(origin)?;
-            ensure!(!BrowserAccountNonce::<T>::contains_key(&sender), Error::<T>::BrowserNonceAlreadyExist);
+            ensure!(!AccountGenerationTaskDelegator::contains_key(&task_hash), Error::<T>::BrowserTaskALreadyExist);
+            // ensure!(!BrowserAccountNonce::<T>::contains_key(&sender), Error::<T>::BrowserNonceAlreadyExist);
 
             // insert into BrowserNonce and fire an event
             let current_block_number = <frame_system::Module<T>>::block_number();
@@ -373,6 +377,7 @@ decl_module! {
             let (block_number, browser_nonce_hash, browser_task_hash) = BrowserAccountNonce::<T>::get(&browser_account);
             ensure!(browser_nonce_hash == app_nonce_hash, Error::<T>::NonceNotMatch);
             // ensure!(browser_task_hash == task_hash, Error::<T>::TaskNotMatch);
+            // todo check task hash
 
             let current_block_number = <frame_system::Module<T>>::block_number();
             if current_block_number - block_number > TASK_TIMEOUT_PERIOD.into() {
@@ -382,9 +387,9 @@ decl_module! {
             }
 
             // account generation requested and fire an event
-            AccountGenerationTaskDelegator::insert(browser_task_hash.to_vec(), delegator_nonce_hash.clone());
+            AccountGenerationTaskDelegator::insert(browser_task_hash.clone(), delegator_nonce_hash.clone());
             BrowserAccountNonce::<T>::remove(&browser_account);
-            Self::deposit_event(RawEvent::AccountGenrationRequested(sender, browser_task_hash.to_vec(), task));
+            Self::deposit_event(RawEvent::AccountGenrationRequested(sender, browser_task_hash, task));
 
             Ok(())
         }
