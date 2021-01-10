@@ -125,7 +125,7 @@ decl_storage! {
         BrowserAppPair get(fn browser_app_pair):
             map hasher(blake2_128_concat) T::AccountId => T::AccountId;
         AppBrowserPair get(fn app_browser_pair):
-            map hasher(blake2_128_concat) T::AccountId => T::AccountId;
+            map hasher(blake2_128_concat) T::AccountId => (T::AccountId, Cid);
 
         // Generate BTC 2/3 MultiSig Account
         // Temporary storage
@@ -276,6 +276,7 @@ decl_module! {
 		    origin,
 		    nonce: Cid,
             browser_pk: ClientPubKey,
+            metadata: Cid,
 		) -> dispatch::DispatchResult {
             let sender = ensure_signed(origin)?;
             ensure!(!AppBrowserPair::<T>::contains_key(&sender), Error::<T>::AppBrowserPairAlreadyExist);
@@ -309,7 +310,7 @@ decl_module! {
             // pair succeed, record it into BrowserAppPair and AppBrowserPair and
             // remove data from AppRegistration and BrowserNonce.
             BrowserAppPair::<T>::insert(browser_account.clone(), sender.clone());
-            AppBrowserPair::<T>::insert(browser_account.clone(), sender.clone());
+            AppBrowserPair::<T>::insert(browser_account.clone(), (sender.clone(), metadata));
             BrowserNonce::<T>::remove(browser_account.clone());
 
             // pair finished and fire an event
@@ -480,7 +481,7 @@ decl_module! {
             ensure!(asset.owner == sender, Error::<T>::InvalidAssetOwner);
 
 
-            let browser = AppBrowserPair::<T>::get(&sender);
+            let (browser, _metadata) = AppBrowserPair::<T>::get(&sender);
             let (block_number, task_browser) = SignTransactionTaskSender::<T>::get(&task_id);
             ensure!(browser == task_browser, Error::<T>::AppBrowserNotPair);
 
