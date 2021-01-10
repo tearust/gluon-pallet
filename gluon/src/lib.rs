@@ -203,6 +203,7 @@ decl_event!(
 		BrowserSignTransactionRequested(AccountId, Cid, SignTransactionData),
 		SignTransactionRequested(AccountId, Cid, Cid, SignTransactionData),
 		UpdateSignTransaction(Cid, bool),
+		AppBrowserUnpaired(AccountId, AccountId),
 	}
 );
 
@@ -238,6 +239,7 @@ decl_error! {
         AppBrowserNotPair,
         AppBrowserPairNotExist,
         TaskTimeout,
+        PairNotExist,
 	}
 }
 
@@ -310,11 +312,34 @@ decl_module! {
             // pair succeed, record it into BrowserAppPair and AppBrowserPair and
             // remove data from AppRegistration and BrowserNonce.
             BrowserAppPair::<T>::insert(browser_account.clone(), sender.clone());
-            AppBrowserPair::<T>::insert(browser_account.clone(), (sender.clone(), metadata));
+            AppBrowserPair::<T>::insert(sender.clone(), (browser_account.clone(), metadata));
             BrowserNonce::<T>::remove(browser_account.clone());
 
             // pair finished and fire an event
             Self::deposit_event(RawEvent::RegistrationApplicationSucceed(sender, browser_account));
+
+            Ok(())
+		}
+
+        #[weight = 100]
+		pub fn unpair_app_browser(
+		    origin,
+		) -> dispatch::DispatchResult {
+		    let sender = ensure_signed(origin)?;
+		    if BrowserAppPair::<T>::contains_key(&sender) {
+		        let app = BrowserAppPair::<T>::get(&sender);
+		        BrowserAppPair::<T>::remove(&sender);
+		        AppBrowserPair::<T>::remove(&app);
+		        Self::deposit_event(RawEvent::AppBrowserUnpaired(app, sender));
+		    } else if AppBrowserPair::<T>::contains_key(&sender) {
+		        let (browser, _metadata) = AppBrowserPair::<T>::get(&sender);
+		        AppBrowserPair::<T>::remove(&sender);
+		        BrowserAppPair::<T>::remove(&browser);
+		        Self::deposit_event(RawEvent::AppBrowserUnpaired(sender, browser));
+		    } else {
+		        debug::info!("failed to unpair");
+                Err(Error::<T>::PairNotExist)?
+		    }
 
             Ok(())
 		}
