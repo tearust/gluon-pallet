@@ -123,7 +123,7 @@ decl_storage! {
 	        map hasher(blake2_128_concat) T::AccountId => (T::BlockNumber, Cid);
 	    // Permanent storage
         BrowserAppPair get(fn browser_app_pair):
-            map hasher(blake2_128_concat) T::AccountId => T::AccountId;
+            map hasher(blake2_128_concat) T::AccountId => (T::AccountId, Cid);
         AppBrowserPair get(fn app_browser_pair):
             map hasher(blake2_128_concat) T::AccountId => (T::AccountId, Cid);
 
@@ -311,7 +311,7 @@ decl_module! {
 
             // pair succeed, record it into BrowserAppPair and AppBrowserPair and
             // remove data from AppRegistration and BrowserNonce.
-            BrowserAppPair::<T>::insert(browser_account.clone(), sender.clone());
+            BrowserAppPair::<T>::insert(browser_account.clone(), (sender.clone(), metadata));
             AppBrowserPair::<T>::insert(sender.clone(), (browser_account.clone(), metadata));
             BrowserNonce::<T>::remove(browser_account.clone());
 
@@ -327,7 +327,7 @@ decl_module! {
 		) -> dispatch::DispatchResult {
 		    let sender = ensure_signed(origin)?;
 		    if BrowserAppPair::<T>::contains_key(&sender) {
-		        let app = BrowserAppPair::<T>::get(&sender);
+		        let (app, _metadata) = BrowserAppPair::<T>::get(&sender);
 		        BrowserAppPair::<T>::remove(&sender);
 		        AppBrowserPair::<T>::remove(&app);
 		        Self::deposit_event(RawEvent::AppBrowserUnpaired(app, sender));
