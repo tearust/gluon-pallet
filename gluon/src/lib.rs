@@ -198,7 +198,7 @@ decl_event!(
 		BrowserSendNonce(AccountId, Cid),
 		RegistrationApplicationSucceed(AccountId, AccountId),
 		BrowserAccountGeneration(AccountId, Cid, Cid),
-		AccountGenrationRequested(AccountId, Cid, AccountGenerationDataWithoutP3),
+		AccountGenerationRequested(AccountId, Cid, AccountGenerationDataWithoutP3),
 		AssetGenerated(Cid, Cid, Asset<AccountId>),
 		BrowserSignTransactionRequested(AccountId, Cid, SignTransactionData),
 		SignTransactionRequested(AccountId, Cid, Cid, SignTransactionData),
@@ -311,7 +311,7 @@ decl_module! {
 
             // pair succeed, record it into BrowserAppPair and AppBrowserPair and
             // remove data from AppRegistration and BrowserNonce.
-            BrowserAppPair::<T>::insert(browser_account.clone(), (sender.clone(), metadata));
+            BrowserAppPair::<T>::insert(browser_account.clone(), (sender.clone(), metadata.clone()));
             AppBrowserPair::<T>::insert(sender.clone(), (browser_account.clone(), metadata));
             BrowserNonce::<T>::remove(browser_account.clone());
 
@@ -415,7 +415,7 @@ decl_module! {
             // account generation requested and fire an event
             AccountGenerationTaskDelegator::insert(browser_task_hash.clone(), delegator_nonce_hash.clone());
             BrowserAccountNonce::<T>::remove(&browser_account);
-            Self::deposit_event(RawEvent::AccountGenrationRequested(sender, browser_task_hash, task));
+            Self::deposit_event(RawEvent::AccountGenerationRequested(sender, browser_task_hash, task));
 
             Ok(())
         }
