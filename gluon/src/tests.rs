@@ -109,7 +109,6 @@ fn test_delegate_sig_should_work() {
         &public
     ));
     assert!(signature.verify(&auth_payload[..], &public));
-
 }
 
 #[test]

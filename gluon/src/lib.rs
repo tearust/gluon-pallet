@@ -1,5 +1,11 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
+use codec::{Decode, Encode};
+use frame_support::{
+    debug, decl_error, decl_event, decl_module, decl_storage, dispatch, ensure,
+    traits::{Currency, ExistenceRequirement::AllowDeath},
+    StorageMap, StorageValue,
+};
 /// A FRAME pallet template with necessary imports
 
 /// Feel free to remove or edit this file as needed.
@@ -9,17 +15,11 @@
 /// For more guidance on Substrate FRAME, see the example pallet
 /// https://github.com/paritytech/substrate/blob/master/frame/example/src/lib.rs
 use frame_system::ensure_signed;
-use codec::{Decode, Encode};
-use frame_support::{
-    debug,
-    decl_event, decl_module, decl_storage, decl_error, dispatch,
-    StorageMap, StorageValue, ensure,
-    traits::{Currency,  ExistenceRequirement::AllowDeath}};
-use sp_std::prelude::*;
-use sp_core::sr25519;
 use pallet_balances as balances;
+use sha2::{Digest, Sha256};
+use sp_core::sr25519;
 use sp_runtime::traits::Verify;
-use sha2::{Sha256, Digest};
+use sp_std::prelude::*;
 
 #[cfg(test)]
 mod mock;
@@ -107,21 +107,21 @@ pub struct SignTransactionResult {
 }
 
 decl_storage! {
-	trait Store for Module<T: Trait> as GluonModule {
-	    TransferAssetTasks get(fn transfer_asset_tasks):
-	        map hasher(twox_64_concat) Cid => TransferAssetTask<T::BlockNumber>;
+    trait Store for Module<T: Trait> as GluonModule {
+        TransferAssetTasks get(fn transfer_asset_tasks):
+            map hasher(twox_64_concat) Cid => TransferAssetTask<T::BlockNumber>;
 
-	    TransferAssetSignatures get(fn transfer_asset_signatures):
-	        map hasher(twox_64_concat) Cid => Vec<T::AccountId>;
+        TransferAssetSignatures get(fn transfer_asset_signatures):
+            map hasher(twox_64_concat) Cid => Vec<T::AccountId>;
 
-	    AccountAssets get(fn account_assets):
-	        map hasher(twox_64_concat) Cid => AccountAsset;
+        AccountAssets get(fn account_assets):
+            map hasher(twox_64_concat) Cid => AccountAsset;
 
         // Register Gluon wallet account.
         // Temporary storage
-	    BrowserNonce get(fn browser_nonce):
-	        map hasher(blake2_128_concat) T::AccountId => (T::BlockNumber, Cid);
-	    // Permanent storage
+        BrowserNonce get(fn browser_nonce):
+            map hasher(blake2_128_concat) T::AccountId => (T::BlockNumber, Cid);
+        // Permanent storage
         BrowserAppPair get(fn browser_app_pair):
             map hasher(blake2_128_concat) T::AccountId => (T::AccountId, Cid);
         AppBrowserPair get(fn app_browser_pair):
@@ -141,26 +141,26 @@ decl_storage! {
 
         // Sign transaction
         // Temporary storage
-	    SignTransactionTasks get(fn sign_transaction_tasks):
-	        map hasher(blake2_128_concat) Cid => SignTransactionData;
-	    SignTransactionTaskSender get(fn sign_transaction_sender):
-	        map hasher(blake2_128_concat) Cid => (T::BlockNumber, T::AccountId);
-	    // Permanent storage
-	    SignTransactionResults get(fn sign_transaction_results):
-	        map hasher(blake2_128_concat) Cid => bool;
+        SignTransactionTasks get(fn sign_transaction_tasks):
+            map hasher(blake2_128_concat) Cid => SignTransactionData;
+        SignTransactionTaskSender get(fn sign_transaction_sender):
+            map hasher(blake2_128_concat) Cid => (T::BlockNumber, T::AccountId);
+        // Permanent storage
+        SignTransactionResults get(fn sign_transaction_results):
+            map hasher(blake2_128_concat) Cid => bool;
 
         // DelegatesCount get(fn delegates_count): u64;
         Delegates get(fn delegates): Vec<(TeaPubKey, T::BlockNumber)>;
-	         // map hasher(blake2_128_concat) TeaPubKey => T::BlockNumber;
+             // map hasher(blake2_128_concat) TeaPubKey => T::BlockNumber;
         // if need to use nonce to get a fixed delegator.
         // DelegatesIndex get(fn delegates_index):
-	    //     map hasher(blake2_128_concat) u64 => (TeaPubKey, T::BlockNumber);
-	}
+        //     map hasher(blake2_128_concat) u64 => (TeaPubKey, T::BlockNumber);
+    }
 
-	add_extra_genesis {
-		build(|_config: &GenesisConfig| {
-		})
-	}
+    add_extra_genesis {
+        build(|_config: &GenesisConfig| {
+        })
+    }
 }
 
 impl<T: Trait> Module<T> {
@@ -171,7 +171,7 @@ impl<T: Trait> Module<T> {
         let mut index: u32 = 0;
         for (d, b) in delegates {
             if current_block_number - b < RUNTIME_ACTIVITY_THRESHOLD.into() {
-                index = index+1;
+                index = index + 1;
                 if index > start {
                     result.push(d.into());
                     let size = result.len();
@@ -187,33 +187,33 @@ impl<T: Trait> Module<T> {
 }
 
 decl_event!(
-	pub enum Event<T>
-	where
-		AccountId = <T as frame_system::Trait>::AccountId,
-		BlockNumber = <T as frame_system::Trait>::BlockNumber,
-	{
-		TransferAssetBegin(Cid, TransferAssetTask<BlockNumber>),
-		TransferAssetSign(Cid, AccountId),
-		TransferAssetEnd(Cid, TransferAssetTask<BlockNumber>),
-		BrowserSendNonce(AccountId, Cid),
-		RegistrationApplicationSucceed(AccountId, AccountId),
-		BrowserAccountGeneration(AccountId, Cid, Cid),
-		AccountGenerationRequested(AccountId, Cid, AccountGenerationDataWithoutP3),
-		AssetGenerated(Cid, Cid, Asset<AccountId>),
-		BrowserSignTransactionRequested(AccountId, Cid, SignTransactionData),
-		SignTransactionRequested(AccountId, Cid, Cid, SignTransactionData),
-		UpdateSignTransaction(Cid, bool),
-		AppBrowserUnpaired(AccountId, AccountId),
-	}
+    pub enum Event<T>
+    where
+        AccountId = <T as frame_system::Trait>::AccountId,
+        BlockNumber = <T as frame_system::Trait>::BlockNumber,
+    {
+        TransferAssetBegin(Cid, TransferAssetTask<BlockNumber>),
+        TransferAssetSign(Cid, AccountId),
+        TransferAssetEnd(Cid, TransferAssetTask<BlockNumber>),
+        BrowserSendNonce(AccountId, Cid),
+        RegistrationApplicationSucceed(AccountId, AccountId),
+        BrowserAccountGeneration(AccountId, Cid, Cid),
+        AccountGenerationRequested(AccountId, Cid, AccountGenerationDataWithoutP3),
+        AssetGenerated(Cid, Cid, Asset<AccountId>),
+        BrowserSignTransactionRequested(AccountId, Cid, SignTransactionData),
+        SignTransactionRequested(AccountId, Cid, Cid, SignTransactionData),
+        UpdateSignTransaction(Cid, bool),
+        AppBrowserUnpaired(AccountId, AccountId),
+    }
 );
 
 // The pallet's errors
 decl_error! {
-	pub enum Error for Module<T: Trait> {
-	    InvalidSig,
-	    InvalidNonceSig,
-	    InvalidSignatureLength,
-	    DelegatorNotExist,
+    pub enum Error for Module<T: Trait> {
+        InvalidSig,
+        InvalidNonceSig,
+        InvalidSignatureLength,
+        DelegatorNotExist,
         AccountIdConvertionError,
         InvalidToAccount,
         SenderIsNotBuildInAccount,
@@ -240,28 +240,28 @@ decl_error! {
         AppBrowserPairNotExist,
         TaskTimeout,
         PairNotExist,
-	}
+    }
 }
 
 // The pallet's dispatchable functions.
 decl_module! {
-	/// The module declaration.
-	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
-		// Initializing errors
-		// this includes information about your errors in the node's metadata.
-		// it is needed only if you are using errors in your pallet
-		type Error = Error<T>;
+    /// The module declaration.
+    pub struct Module<T: Trait> for enum Call where origin: T::Origin {
+        // Initializing errors
+        // this includes information about your errors in the node's metadata.
+        // it is needed only if you are using errors in your pallet
+        type Error = Error<T>;
 
-		// Initializing events
-		// this is needed only if you are using events in your pallet
-		fn deposit_event() = default;
+        // Initializing events
+        // this is needed only if you are using events in your pallet
+        fn deposit_event() = default;
 
-		#[weight = 100]
-		pub fn browser_send_nonce(
-		    origin,
-		    nonce_hash: Cid,
-		) -> dispatch::DispatchResult {
-		    let sender = ensure_signed(origin)?;
+        #[weight = 100]
+        pub fn browser_send_nonce(
+            origin,
+            nonce_hash: Cid,
+        ) -> dispatch::DispatchResult {
+            let sender = ensure_signed(origin)?;
             // ensure!(!BrowserNonce::<T>::contains_key(&sender), Error::<T>::BrowserNonceAlreadyExist);
             ensure!(!BrowserAppPair::<T>::contains_key(&sender), Error::<T>::AppBrowserPairAlreadyExist);
 
@@ -271,15 +271,15 @@ decl_module! {
              Self::deposit_event(RawEvent::BrowserSendNonce(sender, nonce_hash));
 
             Ok(())
-		}
+        }
 
-		#[weight = 100]
-		pub fn send_registration_application(
-		    origin,
-		    nonce: Cid,
+        #[weight = 100]
+        pub fn send_registration_application(
+            origin,
+            nonce: Cid,
             browser_pk: ClientPubKey,
             metadata: Cid,
-		) -> dispatch::DispatchResult {
+        ) -> dispatch::DispatchResult {
             let sender = ensure_signed(origin)?;
             ensure!(!AppBrowserPair::<T>::contains_key(&sender), Error::<T>::AppBrowserPairAlreadyExist);
 
@@ -319,30 +319,30 @@ decl_module! {
             Self::deposit_event(RawEvent::RegistrationApplicationSucceed(sender, browser_account));
 
             Ok(())
-		}
+        }
 
         #[weight = 100]
-		pub fn unpair_app_browser(
-		    origin,
-		) -> dispatch::DispatchResult {
-		    let sender = ensure_signed(origin)?;
-		    if BrowserAppPair::<T>::contains_key(&sender) {
-		        let (app, _metadata) = BrowserAppPair::<T>::get(&sender);
-		        BrowserAppPair::<T>::remove(&sender);
-		        AppBrowserPair::<T>::remove(&app);
-		        Self::deposit_event(RawEvent::AppBrowserUnpaired(app, sender));
-		    } else if AppBrowserPair::<T>::contains_key(&sender) {
-		        let (browser, _metadata) = AppBrowserPair::<T>::get(&sender);
-		        AppBrowserPair::<T>::remove(&sender);
-		        BrowserAppPair::<T>::remove(&browser);
-		        Self::deposit_event(RawEvent::AppBrowserUnpaired(sender, browser));
-		    } else {
-		        debug::info!("failed to unpair");
+        pub fn unpair_app_browser(
+            origin,
+        ) -> dispatch::DispatchResult {
+            let sender = ensure_signed(origin)?;
+            if BrowserAppPair::<T>::contains_key(&sender) {
+                let (app, _metadata) = BrowserAppPair::<T>::get(&sender);
+                BrowserAppPair::<T>::remove(&sender);
+                AppBrowserPair::<T>::remove(&app);
+                Self::deposit_event(RawEvent::AppBrowserUnpaired(app, sender));
+            } else if AppBrowserPair::<T>::contains_key(&sender) {
+                let (browser, _metadata) = AppBrowserPair::<T>::get(&sender);
+                AppBrowserPair::<T>::remove(&sender);
+                BrowserAppPair::<T>::remove(&browser);
+                Self::deposit_event(RawEvent::AppBrowserUnpaired(sender, browser));
+            } else {
+                debug::info!("failed to unpair");
                 Err(Error::<T>::PairNotExist)?
-		    }
+            }
 
             Ok(())
-		}
+        }
 
         #[weight = 100]
         pub fn browser_generate_account(
@@ -420,12 +420,12 @@ decl_module! {
             Ok(())
         }
 
-		#[weight = 100]
+        #[weight = 100]
         pub fn update_generate_account_without_p3_result(
-	        origin,
-	        task_id: Cid,
-	        delegator_nonce: Cid,
-	        p2: Cid,
+            origin,
+            task_id: Cid,
+            delegator_nonce: Cid,
+            p2: Cid,
             p2_deployment_ids: Vec<Cid>,
             multi_sig_account: Cid,
         )-> dispatch::DispatchResult {
@@ -461,14 +461,14 @@ decl_module! {
             Ok(())
         }
 
-		#[weight = 100]
-		pub fn browser_sign_tx(
-		    origin,
-		    data_adhoc: TxData,
+        #[weight = 100]
+        pub fn browser_sign_tx(
+            origin,
+            data_adhoc: TxData,
             delegator_nonce_hash: Cid,
             delegator_nonce_rsa: Cid,
-		) -> dispatch::DispatchResult {
-		    let sender = ensure_signed(origin)?;
+        ) -> dispatch::DispatchResult {
+            let sender = ensure_signed(origin)?;
             ensure!(BrowserAppPair::<T>::contains_key(&sender), Error::<T>::AppBrowserPairNotExist);
 
             let task = SignTransactionData {
@@ -487,20 +487,20 @@ decl_module! {
             Self::deposit_event(RawEvent::BrowserSignTransactionRequested(sender, task_id, task));
 
             Ok(())
-		}
+        }
 
-		#[weight = 100]
+        #[weight = 100]
         pub fn update_p1_signature (
             origin,
             task_id: Cid,
             multisig_address: Cid,
             p1_signautre: TxData,
-		) -> dispatch::DispatchResult {
-			let sender = ensure_signed(origin)?;
-		    ensure!(AppBrowserPair::<T>::contains_key(&sender), Error::<T>::AppBrowserPairNotExist);
-		    ensure!(Assets::<T>::contains_key(&multisig_address), Error::<T>::AssetNotExist);
-		    ensure!(SignTransactionTasks::contains_key(&task_id), Error::<T>::TaskNotExist);
-		    ensure!(SignTransactionTaskSender::<T>::contains_key(&task_id), Error::<T>::TaskNotExist);
+        ) -> dispatch::DispatchResult {
+            let sender = ensure_signed(origin)?;
+            ensure!(AppBrowserPair::<T>::contains_key(&sender), Error::<T>::AppBrowserPairNotExist);
+            ensure!(Assets::<T>::contains_key(&multisig_address), Error::<T>::AssetNotExist);
+            ensure!(SignTransactionTasks::contains_key(&task_id), Error::<T>::TaskNotExist);
+            ensure!(SignTransactionTaskSender::<T>::contains_key(&task_id), Error::<T>::TaskNotExist);
 
             let asset = Assets::<T>::get(&multisig_address);
             ensure!(asset.owner == sender, Error::<T>::InvalidAssetOwner);
@@ -523,16 +523,16 @@ decl_module! {
             Self::deposit_event(RawEvent::SignTransactionRequested(sender, task_id, multisig_address, task));
 
             Ok(())
-		}
+        }
 
-		#[weight = 100]
-		pub fn update_sign_tx_result(
-		    origin,
-		    task_id: Cid,
-		    delegator_nonce: Cid,
-		    succeed: bool,
-		) -> dispatch::DispatchResult {
-		    let _sender = ensure_signed(origin)?;
+        #[weight = 100]
+        pub fn update_sign_tx_result(
+            origin,
+            task_id: Cid,
+            delegator_nonce: Cid,
+            succeed: bool,
+        ) -> dispatch::DispatchResult {
+            let _sender = ensure_signed(origin)?;
             ensure!(SignTransactionTasks::contains_key(&task_id), Error::<T>::TaskNotExist);
             ensure!(!SignTransactionResults::contains_key(&task_id), Error::<T>::SignTransactionResultExist);
 
@@ -557,13 +557,13 @@ decl_module! {
             Self::deposit_event(RawEvent::UpdateSignTransaction(task_id, succeed));
 
             Ok(())
-		}
+        }
 
         #[weight = 100]
         pub fn update_delegator(
-		    origin,
-		) -> dispatch::DispatchResult {
-			let sender = ensure_signed(origin)?;
+            origin,
+        ) -> dispatch::DispatchResult {
+            let sender = ensure_signed(origin)?;
 
             let mut delegator_tea_id = [0u8; 32];
             let public_key_bytes = Self::account_to_bytes(&sender);
@@ -593,26 +593,26 @@ decl_module! {
             Delegates::<T>::put(delegates);
 
             Ok(())
-		}
+        }
 
-		#[weight = 100]
+        #[weight = 100]
         pub fn transfer_asset(
-		    origin,
+            origin,
             from: Cid,
             to: Cid,
-		) -> dispatch::DispatchResult {
-		    let sender = ensure_signed(origin)?;
-		    ensure!(from != to, Error::<T>::InvalidToAccount);
-		    let current_block_number = <frame_system::Module<T>>::block_number();
-		    if TransferAssetTasks::<T>::contains_key(&from) {
-		        ensure!(TransferAssetTasks::<T>::get(&from).to == to, Error::<T>::InvalidToAccount);
-		        // if timeout, need to remove the transfer-asset task.
-		        if TransferAssetTasks::<T>::get(&from).start_height +
-		        MAX_TRANSFER_ASSET_TASK_PERIOD.into() < current_block_number {
-		            TransferAssetTasks::<T>::remove(&from);
-		            TransferAssetSignatures::<T>::remove(&from);
-		        }
-		    }
+        ) -> dispatch::DispatchResult {
+            let sender = ensure_signed(origin)?;
+            ensure!(from != to, Error::<T>::InvalidToAccount);
+            let current_block_number = <frame_system::Module<T>>::block_number();
+            if TransferAssetTasks::<T>::contains_key(&from) {
+                ensure!(TransferAssetTasks::<T>::get(&from).to == to, Error::<T>::InvalidToAccount);
+                // if timeout, need to remove the transfer-asset task.
+                if TransferAssetTasks::<T>::get(&from).start_height +
+                MAX_TRANSFER_ASSET_TASK_PERIOD.into() < current_block_number {
+                    TransferAssetTasks::<T>::remove(&from);
+                    TransferAssetSignatures::<T>::remove(&from);
+                }
+            }
 
             let mut client_from = T::AccountId::default();
             let account_from = Self::bytes_to_account(&mut from.as_slice());
@@ -682,20 +682,20 @@ decl_module! {
             if !TransferAssetTasks::<T>::contains_key(&from) {
                let new_task = TransferAssetTask {
                    from: from.clone(),
-            	    to: to.clone(),
-            	    start_height: current_block_number,
+                    to: to.clone(),
+                    start_height: current_block_number,
                };
                TransferAssetTasks::<T>::insert(from.clone(), &new_task);
                Self::deposit_event(RawEvent::TransferAssetBegin(from.clone(), new_task));
             }
 
             Ok(())
-		}
+        }
 
-		fn on_finalize(block_number: T::BlockNumber) {
+        fn on_finalize(block_number: T::BlockNumber) {
             Self::update_runtime_status(block_number);
         }
-	}
+    }
 }
 
 impl<T: Trait> Module<T> {
@@ -718,8 +718,7 @@ impl<T: Trait> Module<T> {
         Ok(bytes)
     }
 
-    fn update_runtime_status(_block_number: T::BlockNumber) {
-    }
+    fn update_runtime_status(_block_number: T::BlockNumber) {}
 
     /// Do a sha2 256-bit hash and return result.
     pub fn sha2_256(data: &[u8]) -> [u8; 32] {

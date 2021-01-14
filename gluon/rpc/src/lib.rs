@@ -1,17 +1,18 @@
 //! RPC interface for the transaction payment module.
 
+use gluon_runtime_api::GluonApi as GluonRuntimeApi;
 use jsonrpc_core::{Error as RpcError, ErrorCode, Result};
 use jsonrpc_derive::rpc;
-use sp_api::{ProvideRuntimeApi};
+use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_runtime::{generic::BlockId, traits::Block as BlockT};
 use std::sync::Arc;
-use gluon_runtime_api::GluonApi as GluonRuntimeApi;
 
 #[rpc]
 pub trait GluonApi<BlockHash> {
     #[rpc(name = "gluon_getDelegates")]
-    fn get_delegates(&self, start: u32, count: u32, at: Option<BlockHash>) -> Result<Vec<[u8; 32]>>;
+    fn get_delegates(&self, start: u32, count: u32, at: Option<BlockHash>)
+        -> Result<Vec<[u8; 32]>>;
 }
 
 /// A struct that implements the `SumStorageApi`.
@@ -33,14 +34,19 @@ impl<C, M> Gluon<C, M> {
 }
 
 impl<C, Block> GluonApi<<Block as BlockT>::Hash> for Gluon<C, Block>
-    where
-        Block: BlockT,
-        C: Send + Sync + 'static,
-        C: ProvideRuntimeApi<Block>,
-        C: HeaderBackend<Block>,
-        C::Api: GluonRuntimeApi<Block>,
+where
+    Block: BlockT,
+    C: Send + Sync + 'static,
+    C: ProvideRuntimeApi<Block>,
+    C: HeaderBackend<Block>,
+    C::Api: GluonRuntimeApi<Block>,
 {
-    fn get_delegates(&self, start: u32, count: u32, at: Option<<Block as BlockT>::Hash>) -> Result<Vec<[u8; 32]>> {
+    fn get_delegates(
+        &self,
+        start: u32,
+        count: u32,
+        at: Option<<Block as BlockT>::Hash>,
+    ) -> Result<Vec<[u8; 32]>> {
         let api = self.client.runtime_api();
         let at = BlockId::hash(at.unwrap_or_else(||
             // If the block hash is not supplied assume the best block.
