@@ -562,6 +562,7 @@ decl_module! {
         #[weight = 100]
         pub fn update_delegator(
             origin,
+            delegator_pubkey: TeaPubKey,
         ) -> dispatch::DispatchResult {
             let sender = ensure_signed(origin)?;
 
@@ -576,19 +577,20 @@ decl_module! {
                     Err(Error::<T>::AccountIdConvertionError)?
                 }
             }
+            // todo how to check delegator pubkey with layer1 account
 
             let mut exist = false;
             let current_block_number = <frame_system::Module<T>>::block_number();
             let mut delegates = Delegates::<T>::get();
             for (d, b) in &mut delegates {
-                if d == &delegator_tea_id {
+                if d == &delegator_pubkey {
                     *b = current_block_number;
                     exist = true;
                     break;
                 }
             }
             if !exist {
-                delegates.push((delegator_tea_id, current_block_number));
+                delegates.push((delegator_pubkey, current_block_number));
             }
             Delegates::<T>::put(delegates);
 
