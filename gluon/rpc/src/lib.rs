@@ -13,6 +13,11 @@ pub trait GluonApi<BlockHash> {
     #[rpc(name = "gluon_getDelegates")]
     fn get_delegates(&self, start: u32, count: u32, at: Option<BlockHash>)
         -> Result<Vec<[u8; 32]>>;
+
+    #[rpc(name = "gluon_encodeAccountGenerationWithoutP3")]
+    fn encode_account_generation_without_p3(&self,
+        key_ype: Vec<u8>, n: u32, k: u32, delegator_nonce_hash: Vec<u8>,
+        delegator_nonce_rsa: Vec<u8>, p1: Vec<u8>, at: Option<BlockHash>) -> Result<Vec<u8>>;
 }
 
 /// A struct that implements the `SumStorageApi`.
@@ -53,6 +58,29 @@ where
             self.client.info().best_hash));
 
         let runtime_api_result = api.get_delegates(&at, start, count);
+        runtime_api_result.map_err(|e| RpcError {
+            code: ErrorCode::ServerError(9876), // No real reason for this value
+            message: "Something wrong".into(),
+            data: Some(format!("{:?}", e).into()),
+        })
+    }
+
+    fn encode_account_generation_without_p3(
+        &self,
+        key_type: Vec<u8>,
+        n: u32,
+        k: u32,
+        delegator_nonce_hash: Vec<u8>,
+        delegator_nonce_rsa: Vec<u8>,
+        p1: Vec<u8>,
+        at: Option<<Block as BlockT>::Hash>,
+    ) -> Result<Vec<u8>> {
+        let api = self.client.runtime_api();
+        let at = BlockId::hash(at.unwrap_or_else(||
+            // If the block hash is not supplied assume the best block.
+            self.client.info().best_hash));
+        let runtime_api_result = api.encode_account_generation_without_p3(
+            &at, key_type, n, k, delegator_nonce_hash, delegator_nonce_rsa, p1);
         runtime_api_result.map_err(|e| RpcError {
             code: ErrorCode::ServerError(9876), // No real reason for this value
             message: "Something wrong".into(),

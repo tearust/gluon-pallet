@@ -149,9 +149,7 @@ decl_storage! {
         SignTransactionResults get(fn sign_transaction_results):
             map hasher(blake2_128_concat) Cid => bool;
 
-        // DelegatesCount get(fn delegates_count): u64;
         Delegates get(fn delegates): Vec<(TeaPubKey, T::BlockNumber)>;
-             // map hasher(blake2_128_concat) TeaPubKey => T::BlockNumber;
         // if need to use nonce to get a fixed delegator.
         // DelegatesIndex get(fn delegates_index):
         //     map hasher(blake2_128_concat) u64 => (TeaPubKey, T::BlockNumber);
@@ -164,7 +162,10 @@ decl_storage! {
 }
 
 impl<T: Trait> Module<T> {
-    pub fn get_delegates(start: u32, count: u32) -> Vec<[u8; 32]> {
+    pub fn get_delegates(
+        start: u32,
+        count: u32
+    ) -> Vec<[u8; 32]> {
         let delegates = Delegates::<T>::get();
         let current_block_number = <frame_system::Module<T>>::block_number();
         let mut result: Vec<[u8; 32]> = vec![];
@@ -183,6 +184,26 @@ impl<T: Trait> Module<T> {
             }
         }
         result
+    }
+
+    pub fn encode_account_generation_without_p3(
+        key_type: Vec<u8>,
+        n: u32,
+        k: u32,
+        delegator_nonce_hash: Vec<u8>,
+        delegator_nonce_rsa: Vec<u8>,
+        p1: Vec<u8>
+    ) -> Vec<u8> {
+        let task = AccountGenerationDataWithoutP3 {
+            key_type: key_type,
+            n: n,
+            k: k,
+            delegator_nonce_hash: delegator_nonce_hash,
+            delegator_nonce_rsa: delegator_nonce_rsa,
+            p1: p1,
+        };
+        let task_data = task.encode();
+        return task_data.to_vec()
     }
 }
 
@@ -402,6 +423,11 @@ decl_module! {
             let app_nonce_hash = Self::sha2_256(&nonce.as_slice());
             let (block_number, browser_nonce_hash, browser_task_hash) = BrowserAccountNonce::<T>::get(&browser_account);
             ensure!(browser_nonce_hash == app_nonce_hash, Error::<T>::NonceNotMatch);
+            let task_data = task.encode();
+            let task_hash = Self::sha2_256(&task_data);
+            let task_hash_str = hex::encode(task_hash);
+            debug::info!("####### task_hash_str:{:?}", task_data);
+            debug::info!("####### task_hash_str:{}", task_hash_str);
             // ensure!(browser_task_hash == task_hash, Error::<T>::TaskNotMatch);
             // todo check task hash
 

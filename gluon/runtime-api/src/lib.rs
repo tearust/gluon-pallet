@@ -9,5 +9,9 @@ use sp_std::prelude::*;
 sp_api::decl_runtime_apis! {
     pub trait GluonApi {
         fn get_delegates(start: u32, count: u32) -> Vec<[u8; 32]>;
+
+        fn encode_account_generation_without_p3(
+            key_type: Vec<u8>, n: u32, k: u32, delegator_nonce_hash: Vec<u8>,
+            delegator_nonce_rsa: Vec<u8>, p1: Vec<u8>) -> Vec<u8>;
     }
 }
