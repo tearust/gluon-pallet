@@ -27,6 +27,9 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+#[cfg(feature = "std")]
+use serde::{Serialize, Deserialize};
+
 /// The pallet's configuration trait.
 pub trait Trait: balances::Trait {
     type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
@@ -67,6 +70,7 @@ pub struct TransferAssetTask<BlockNumber> {
     pub start_height: BlockNumber,
 }
 
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug)]
 pub struct AccountGenerationDataWithoutP3 {
     /// the key type: btc or eth.
@@ -202,6 +206,19 @@ impl<T: Trait> Module<T> {
             delegator_nonce_rsa: delegator_nonce_rsa,
             p1: p1,
         };
+        let task_data = task.encode();
+
+        let task_hash = Self::sha2_256(&task_data);
+        let task_hash_str = hex::encode(task_hash);
+        debug::info!("task_data:{:?}", task_data);
+        debug::info!("task_hash_str:{}", task_hash_str);
+
+        return task_data.to_vec()
+    }
+
+    pub fn encode_task1(
+        task: AccountGenerationDataWithoutP3
+    ) -> Vec<u8> {
         let task_data = task.encode();
         return task_data.to_vec()
     }
@@ -426,8 +443,8 @@ decl_module! {
             let task_data = task.encode();
             let task_hash = Self::sha2_256(&task_data);
             let task_hash_str = hex::encode(task_hash);
-            debug::info!("####### task_hash_str:{:?}", task_data);
-            debug::info!("####### task_hash_str:{}", task_hash_str);
+            debug::info!("task_data:{:?}", task_data);
+            debug::info!("task_hash_str:{}", task_hash_str);
             // ensure!(browser_task_hash == task_hash, Error::<T>::TaskNotMatch);
             // todo check task hash
 

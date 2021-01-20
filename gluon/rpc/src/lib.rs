@@ -7,9 +7,10 @@ use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_runtime::{generic::BlockId, traits::Block as BlockT};
 use std::sync::Arc;
+use codec::{Codec, Decode, Encode};
 
 #[rpc]
-pub trait GluonApi<BlockHash> {
+pub trait GluonApi<BlockHash, AccountGenerationDataWithoutP3> {
     #[rpc(name = "gluon_getDelegates")]
     fn get_delegates(&self, start: u32, count: u32, at: Option<BlockHash>)
         -> Result<Vec<[u8; 32]>>;
@@ -18,6 +19,9 @@ pub trait GluonApi<BlockHash> {
     fn encode_account_generation_without_p3(&self,
         key_ype: Vec<u8>, n: u32, k: u32, delegator_nonce_hash: Vec<u8>,
         delegator_nonce_rsa: Vec<u8>, p1: Vec<u8>, at: Option<BlockHash>) -> Result<Vec<u8>>;
+
+    #[rpc(name = "gluon_encodeTask")]
+    fn encode_task1(&self, task: AccountGenerationDataWithoutP3, at: Option<BlockHash>) -> Result<Vec<u8>>;
 }
 
 /// A struct that implements the `SumStorageApi`.
@@ -38,13 +42,15 @@ impl<C, M> Gluon<C, M> {
     }
 }
 
-impl<C, Block> GluonApi<<Block as BlockT>::Hash> for Gluon<C, Block>
+impl<C, Block, AccountGenerationDataWithoutP3>
+    GluonApi<<Block as BlockT>::Hash, AccountGenerationDataWithoutP3> for Gluon<C, Block>
 where
     Block: BlockT,
     C: Send + Sync + 'static,
     C: ProvideRuntimeApi<Block>,
     C: HeaderBackend<Block>,
-    C::Api: GluonRuntimeApi<Block>,
+    C::Api: GluonRuntimeApi<Block, AccountGenerationDataWithoutP3>,
+    AccountGenerationDataWithoutP3: Codec,
 {
     fn get_delegates(
         &self,
@@ -81,6 +87,21 @@ where
             self.client.info().best_hash));
         let runtime_api_result = api.encode_account_generation_without_p3(
             &at, key_type, n, k, delegator_nonce_hash, delegator_nonce_rsa, p1);
+        runtime_api_result.map_err(|e| RpcError {
+            code: ErrorCode::ServerError(9876), // No real reason for this value
+            message: "Something wrong".into(),
+            data: Some(format!("{:?}", e).into()),
+        })
+    }
+
+    fn encode_task1(&self, task: AccountGenerationDataWithoutP3,
+                    at: Option<<Block as BlockT>::Hash>) -> Result<Vec<u8>>  {
+        let api = self.client.runtime_api();
+        let at = BlockId::hash(at.unwrap_or_else(||
+            // If the block hash is not supplied assume the best block.
+            self.client.info().best_hash));
+        let runtime_api_result = api.encode_task1(
+            &at, task);
         runtime_api_result.map_err(|e| RpcError {
             code: ErrorCode::ServerError(9876), // No real reason for this value
             message: "Something wrong".into(),
