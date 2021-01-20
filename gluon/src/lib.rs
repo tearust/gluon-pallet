@@ -442,11 +442,12 @@ decl_module! {
             ensure!(browser_nonce_hash == app_nonce_hash, Error::<T>::NonceNotMatch);
             let task_data = task.encode();
             let task_hash = Self::sha2_256(&task_data);
-            let task_hash_str = hex::encode(task_hash);
+            let task_hash_str = hex::encode(&task_hash);
+            let browser_task_hash_str = hex::encode(&browser_task_hash);
             debug::info!("task_data:{:?}", task_data);
-            debug::info!("task_hash_str:{}", task_hash_str);
-            // ensure!(browser_task_hash == task_hash, Error::<T>::TaskNotMatch);
-            // todo check task hash
+            debug::info!("browser task_hash_str:{}", browser_task_hash_str);
+            debug::info!("app task_hash_str:{}", task_hash_str);
+            ensure!(browser_task_hash == task_hash, Error::<T>::TaskNotMatch);
 
             let current_block_number = <frame_system::Module<T>>::block_number();
             if current_block_number - block_number > TASK_TIMEOUT_PERIOD.into() {
