@@ -105,6 +105,18 @@ pub struct SignTransactionData {
 }
 
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug)]
+pub struct SignTransactionTask {
+    /// the task hash
+    pub task_id: Cid,
+    /// the address of multisig account
+    pub multisig_address: Cid,
+    /// the signature of p1
+    pub p1_signature: TxData,
+    /// the information of task
+    pub task_data: SignTransactionData
+}
+
+#[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug)]
 pub struct SignTransactionResult {
     pub task_id: Cid,
     pub succeed: bool,
@@ -239,7 +251,7 @@ decl_event!(
         AccountGenerationRequested(AccountId, Cid, AccountGenerationDataWithoutP3),
         AssetGenerated(Cid, Cid, Asset<AccountId>),
         BrowserSignTransactionRequested(AccountId, Cid, SignTransactionData),
-        SignTransactionRequested(AccountId, Cid, Cid, SignTransactionData),
+        SignTransactionRequested(AccountId, SignTransactionTask),
         UpdateSignTransaction(Cid, bool),
         AppBrowserUnpaired(AccountId, AccountId),
     }
@@ -538,7 +550,7 @@ decl_module! {
             origin,
             task_id: Cid,
             multisig_address: Cid,
-            p1_signautre: TxData,
+            p1_signature: TxData,
         ) -> dispatch::DispatchResult {
             let sender = ensure_signed(origin)?;
             ensure!(AppBrowserPair::<T>::contains_key(&sender), Error::<T>::AppBrowserPairNotExist);
@@ -564,7 +576,14 @@ decl_module! {
 
 
             let task = SignTransactionTasks::get(&task_id);
-            Self::deposit_event(RawEvent::SignTransactionRequested(sender, task_id, multisig_address, task));
+            let task_info = SignTransactionTask {
+                task_id: task_id,
+                multisig_address: multisig_address,
+                p1_signature: p1_signature,
+                task_data: task,
+            };
+
+            Self::deposit_event(RawEvent::SignTransactionRequested(sender, task_info));
 
             Ok(())
         }
