@@ -51,6 +51,8 @@ pub type KeyType = Vec<u8>;
 
 pub type ClientPubKey = Vec<u8>;
 
+pub type MultiSigAccount = Vec<u8>;
+
 const RUNTIME_ACTIVITY_THRESHOLD: u32 = 3600;
 const MIN_TRANSFER_ASSET_SIGNATURE_COUNT: usize = 2;
 const MAX_TRANSFER_ASSET_TASK_PERIOD: u32 = 100;
@@ -152,7 +154,7 @@ decl_storage! {
             map hasher(blake2_128_concat) Cid => Cid; // key: app, value: key type
         // Permanent storage
         Assets get(fn assets):
-            map hasher(blake2_128_concat) Cid => Asset<T::AccountId>; // key: multiSigAccount value
+            map hasher(blake2_128_concat) MultiSigAccount => Asset<T::AccountId>; // key: multiSigAccount value
 
 
         // Sign transaction
@@ -249,7 +251,7 @@ decl_event!(
         RegistrationApplicationSucceed(AccountId, AccountId),
         BrowserAccountGeneration(AccountId, Cid, Cid),
         AccountGenerationRequested(AccountId, Cid, AccountGenerationDataWithoutP3),
-        AssetGenerated(Cid, Cid, Asset<AccountId>),
+        AssetGenerated(Cid, MultiSigAccount, Asset<AccountId>),
         BrowserSignTransactionRequested(AccountId, Cid, SignTransactionData),
         SignTransactionRequested(AccountId, SignTransactionTask),
         UpdateSignTransaction(Cid, bool),
@@ -483,7 +485,7 @@ decl_module! {
             delegator_nonce: Cid,
             p2: Cid,
             p2_deployment_ids: Vec<Cid>,
-            multi_sig_account: Cid,
+            multi_sig_account: MultiSigAccount,
         )-> dispatch::DispatchResult {
             let sender = ensure_signed(origin)?;
             ensure!(AccountGenerationTaskDelegator::contains_key(&task_id), Error::<T>::TaskNotExist);
