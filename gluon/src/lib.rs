@@ -488,7 +488,7 @@ decl_module! {
             multi_sig_account: MultiSigAccount,
         )-> dispatch::DispatchResult {
             let sender = ensure_signed(origin)?;
-            ensure!(AccountGenerationTaskDelegator::contains_key(&task_id), Error::<T>::TaskNotExist);
+            // ensure!(AccountGenerationTaskDelegator::contains_key(&task_id), Error::<T>::TaskNotExist);
             ensure!(!Assets::<T>::contains_key(&multi_sig_account), Error::<T>::AssetAlreadyExist);
 
             // let mut delegator = [0u8; 32];
@@ -502,9 +502,10 @@ decl_module! {
             //         Err(Error::<T>::AccountIdConvertionError)?
             //     }
             // }
-            let history_delegator_nonce_hash = AccountGenerationTaskDelegator::get(&task_id);
-            let delegator_nonce_hash = Self::sha2_256(&delegator_nonce);
-            ensure!(delegator_nonce_hash == history_delegator_nonce_hash.as_slice(), Error::<T>::InvalidSig);
+
+            // let history_delegator_nonce_hash = AccountGenerationTaskDelegator::get(&task_id);
+            // let delegator_nonce_hash = Self::sha2_256(&delegator_nonce);
+            // ensure!(delegator_nonce_hash == history_delegator_nonce_hash.as_slice(), Error::<T>::InvalidSig);
 
             let asset_info = Asset {
                 owner: sender.clone(),
@@ -513,7 +514,7 @@ decl_module! {
             };
 
             Assets::<T>::insert(multi_sig_account.clone(), asset_info.clone());
-            AccountGenerationTaskDelegator::remove(&task_id);
+            // AccountGenerationTaskDelegator::remove(&task_id);
             Self::deposit_event(RawEvent::AssetGenerated(task_id, multi_sig_account, asset_info));
 
             Ok(())
