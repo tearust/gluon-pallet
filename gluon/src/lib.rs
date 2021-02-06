@@ -94,6 +94,10 @@ pub struct Asset<AccountId> {
     pub owner: AccountId,
     pub p2: Cid,
     pub deployment_ids: Vec<Cid>,
+    pub web: AccountId,
+    pub app: AccountId,
+    pub multi_sig_account: MultiSigAccount,
+    pub data_adhoc: AccountGenerationDataWithoutP3,
 }
 
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug)]
@@ -148,11 +152,16 @@ decl_storage! {
         // Generate BTC 2/3 MultiSig Account
         // Temporary storage
         BrowserAccountNonce get(fn browser_account_nonce):
-            map hasher(blake2_128_concat) T::AccountId => (T::BlockNumber, Cid, Cid); // value: (nonce hash, task hash)
+            map hasher(blake2_128_concat) T::AccountId => (T::BlockNumber, Cid, Cid); // value: (height, nonce hash, task hash)
+        AccountGenerationTasks get(fn account_generation_tasks):
+                    map hasher(blake2_128_concat) Cid => AccountGenerationDataWithoutP3; // key: task_id value: task
         // Intermediate storage to wait for task result
         AccountGenerationTaskDelegator get(fn account_generation_task_delegator):
-            map hasher(blake2_128_concat) Cid => Cid; // key: app, value: key type
+            map hasher(blake2_128_concat) Cid => (Cid, T::AccountId); // key: task_id, value: (delegator_nonce_hash, browser)
         // Permanent storage
+        BrowserMultiSigAccounts get(fn browser_multi_sig_account):
+            map hasher(blake2_128_concat) T::AccountId => Vec<MultiSigAccount>;
+
         Assets get(fn assets):
             map hasher(blake2_128_concat) MultiSigAccount => Asset<T::AccountId>; // key: multiSigAccount value
 
@@ -403,7 +412,7 @@ decl_module! {
             task_hash: Cid,
         ) -> dispatch::DispatchResult {
             let sender = ensure_signed(origin)?;
-            ensure!(!AccountGenerationTaskDelegator::contains_key(&task_hash), Error::<T>::BrowserTaskALreadyExist);
+            ensure!(!AccountGenerationTaskDelegator::<T>::contains_key(&task_hash), Error::<T>::BrowserTaskALreadyExist);
             // ensure!(!BrowserAccountNonce::<T>::contains_key(&sender), Error::<T>::BrowserNonceAlreadyExist);
 
             // insert into BrowserNonce and fire an event
@@ -471,7 +480,8 @@ decl_module! {
             }
 
             // account generation requested and fire an event
-            AccountGenerationTaskDelegator::insert(browser_task_hash.clone(), delegator_nonce_hash.clone());
+            AccountGenerationTaskDelegator::<T>::insert(browser_task_hash.clone(), (delegator_nonce_hash.clone(), browser_account.clone()));
+            AccountGenerationTasks::insert(browser_task_hash.clone(), task.clone());
             BrowserAccountNonce::<T>::remove(&browser_account);
             Self::deposit_event(RawEvent::AccountGenerationRequested(sender, browser_task_hash, task));
 
@@ -488,34 +498,75 @@ decl_module! {
             multi_sig_account: MultiSigAccount,
         )-> dispatch::DispatchResult {
             let sender = ensure_signed(origin)?;
-            // ensure!(AccountGenerationTaskDelegator::contains_key(&task_id), Error::<T>::TaskNotExist);
-            ensure!(!Assets::<T>::contains_key(&multi_sig_account), Error::<T>::AssetAlreadyExist);
 
-            // let mut delegator = [0u8; 32];
-            // let public_key_bytes = Self::account_to_bytes(&sender);
-            // match public_key_bytes {
-            //     Ok(p) => {
-            //         delegator = p;
-            //     }
-            //     Err(_e) => {
-            //         debug::info!("failed to parse account");
-            //         Err(Error::<T>::AccountIdConvertionError)?
-            //     }
-            // }
+            if !AccountGenerationTaskDelegator::<T>::contains_key(&task_id) {
+                // todo remove this branch: temp for mock test
+                // ensure!(AccountGenerationTaskDelegator::contains_key(&task_id), Error::<T>::TaskNotExist);
+                ensure!(!Assets::<T>::contains_key(&multi_sig_account), Error::<T>::AssetAlreadyExist);
+                // let mut delegator = [0u8; 32];
+                // let public_key_bytes = Self::account_to_bytes(&sender);
+                // match public_key_bytes {
+                //     Ok(p) => {
+                //         delegator = p;
+                //     }
+                //     Err(_e) => {
+                //         debug::info!("failed to parse account");
+                //         Err(Error::<T>::AccountIdConvertionError)?
+                //     }
+                // }
 
-            // let history_delegator_nonce_hash = AccountGenerationTaskDelegator::get(&task_id);
-            // let delegator_nonce_hash = Self::sha2_256(&delegator_nonce);
-            // ensure!(delegator_nonce_hash == history_delegator_nonce_hash.as_slice(), Error::<T>::InvalidSig);
+                // let (history_delegator_nonce_hash, _) = AccountGenerationTaskDelegator::<T>::get(&task_id);
+                // let delegator_nonce_hash = Self::sha2_256(&delegator_nonce);
+                // ensure!(delegator_nonce_hash == history_delegator_nonce_hash.as_slice(), Error::<T>::InvalidSig);
 
-            let asset_info = Asset {
-                owner: sender.clone(),
-                p2: p2.clone(),
-                deployment_ids: p2_deployment_ids.clone()
-            };
+                let asset_info = Asset {
+                    owner: sender.clone(),
+                    p2: p2.clone(),
+                    deployment_ids: p2_deployment_ids.clone(),
+                    web: T::AccountId::default(),
+                    app: T::AccountId::default(),
+                    multi_sig_account: Vec::new(),
+                    data_adhoc: AccountGenerationDataWithoutP3::default()
+                };
 
-            Assets::<T>::insert(multi_sig_account.clone(), asset_info.clone());
-            // AccountGenerationTaskDelegator::remove(&task_id);
-            Self::deposit_event(RawEvent::AssetGenerated(task_id, multi_sig_account, asset_info));
+                Assets::<T>::insert(multi_sig_account.clone(), asset_info.clone());
+                // AccountGenerationTaskDelegator::<T>::remove(&task_id);
+                Self::deposit_event(RawEvent::AssetGenerated(task_id, multi_sig_account, asset_info));
+            } else {
+                ensure!(AccountGenerationTaskDelegator::<T>::contains_key(&task_id), Error::<T>::TaskNotExist);
+                ensure!(AccountGenerationTasks::contains_key(&task_id), Error::<T>::TaskNotExist);
+                ensure!(!Assets::<T>::contains_key(&multi_sig_account), Error::<T>::AssetAlreadyExist);
+                let (history_delegator_nonce_hash, _) = AccountGenerationTaskDelegator::<T>::get(&task_id);
+                let delegator_nonce_hash = Self::sha2_256(&delegator_nonce);
+                ensure!(delegator_nonce_hash == history_delegator_nonce_hash.as_slice(), Error::<T>::InvalidSig);
+
+                let task = AccountGenerationTasks::get(&task_id);
+                let (_, browser) = AccountGenerationTaskDelegator::<T>::get(&task_id);
+                let (app, _) = BrowserAppPair::<T>::get(&browser);
+
+                let asset_info = Asset {
+                    owner: sender.clone(),
+                    p2: p2.clone(),
+                    deployment_ids: p2_deployment_ids.clone(),
+                    web: browser.clone(),
+                    app: app.clone(),
+                    multi_sig_account: multi_sig_account.clone(),
+                    data_adhoc: task
+                };
+
+                if BrowserMultiSigAccounts::<T>::contains_key(&browser) {
+                    BrowserMultiSigAccounts::<T>::insert(browser.clone(), vec![multi_sig_account.clone()]);
+                } else {
+                    let mut accounts = BrowserMultiSigAccounts::<T>::take(&browser);
+                    accounts.push(multi_sig_account.clone());
+                    BrowserMultiSigAccounts::<T>::insert(browser.clone(), accounts.clone());
+                }
+
+                Assets::<T>::insert(multi_sig_account.clone(), asset_info.clone());
+                // todo clear useless data
+                // AccountGenerationTaskDelegator::<T>::remove(&task_id);
+                Self::deposit_event(RawEvent::AssetGenerated(task_id, multi_sig_account, asset_info));
+            }
 
             Ok(())
         }
