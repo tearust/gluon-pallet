@@ -28,7 +28,7 @@ mod mock;
 mod tests;
 
 #[cfg(feature = "std")]
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 /// The pallet's configuration trait.
 pub trait Trait: balances::Trait {
@@ -119,7 +119,7 @@ pub struct SignTransactionTask {
     /// the signature of p1
     pub p1_signature: TxData,
     /// the information of task
-    pub task_data: SignTransactionData
+    pub task_data: SignTransactionData,
 }
 
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug)]
@@ -189,10 +189,7 @@ decl_storage! {
 }
 
 impl<T: Trait> Module<T> {
-    pub fn get_delegates(
-        start: u32,
-        count: u32
-    ) -> Vec<[u8; 32]> {
+    pub fn get_delegates(start: u32, count: u32) -> Vec<[u8; 32]> {
         let delegates = Delegates::<T>::get();
         let current_block_number = <frame_system::Module<T>>::block_number();
         let mut result: Vec<[u8; 32]> = vec![];
@@ -219,7 +216,7 @@ impl<T: Trait> Module<T> {
         k: u32,
         delegator_nonce_hash: Vec<u8>,
         delegator_nonce_rsa: Vec<u8>,
-        p1: Vec<u8>
+        p1: Vec<u8>,
     ) -> Vec<u8> {
         let task = AccountGenerationDataWithoutP3 {
             key_type: key_type,
@@ -236,14 +233,12 @@ impl<T: Trait> Module<T> {
         debug::info!("task_data:{:?}", task_data);
         debug::info!("task_hash_str:{}", task_hash_str);
 
-        return task_data.to_vec()
+        return task_data.to_vec();
     }
 
-    pub fn encode_task1(
-        task: AccountGenerationDataWithoutP3
-    ) -> Vec<u8> {
+    pub fn encode_task1(task: AccountGenerationDataWithoutP3) -> Vec<u8> {
         let task_data = task.encode();
-        return task_data.to_vec()
+        return task_data.to_vec();
     }
 }
 
