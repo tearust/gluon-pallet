@@ -16,6 +16,7 @@ use frame_support::{
 /// https://github.com/paritytech/substrate/blob/master/frame/example/src/lib.rs
 use frame_system::ensure_signed;
 use pallet_balances as balances;
+use pallet_recovery as recovery;
 use sha2::{Digest, Sha256};
 use sp_core::sr25519;
 use sp_runtime::traits::Verify;
