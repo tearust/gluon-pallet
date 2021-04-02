@@ -64,6 +64,7 @@ pub struct AccountAsset {
     pub account_id: Cid,
     pub btc: Vec<Cid>,
     pub eth: Vec<Cid>,
+    pub dot: Vec<Cid>,
 }
 
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug)]
@@ -297,6 +298,7 @@ decl_error! {
         AppBrowserPairNotExist,
         TaskTimeout,
         PairNotExist,
+        InvalidKeyTypeForAccountAsset,
     }
 }
 
@@ -781,6 +783,7 @@ decl_module! {
                            let mut to_account_assets = AccountAssets::take(&to);
                            to_account_assets.btc.append(&mut from_account_assets.btc);
                            to_account_assets.eth.append(&mut from_account_assets.eth);
+                           to_account_assets.dot.append(&mut from_account_assets.dot);
                            AccountAssets::insert(&to, to_account_assets);
                        } else {
                            AccountAssets::insert(&to, from_account_assets);
@@ -809,6 +812,60 @@ decl_module! {
 
         fn on_finalize(block_number: T::BlockNumber) {
             Self::update_runtime_status(block_number);
+        }
+
+        // TODO test method to add account asset, will remove later.
+        #[weight = 10]
+        pub fn test_add_account_asset(
+            origin,
+            target: Cid,
+            key_type: Vec<u8>,
+            account: Cid,
+        )-> dispatch::DispatchResult {
+            let sender = ensure_signed(origin)?;
+
+            let mut target_account_assets = {
+                if AccountAssets::contains_key(&target) {
+                    AccountAssets::take(&target)
+                }
+                else {
+                    AccountAsset {
+                        account_id: target.clone(),
+                        btc: vec![],
+                        eth: vec![],
+                        dot: vec![],
+                    }
+                }
+                
+            };
+
+            let flag: i8 = match hex::encode(key_type).as_str() {
+                // btc
+                "627463" => {
+                    target_account_assets.btc.push(account.clone());
+                    1
+                },
+                // eth
+                "657468" => {
+                    target_account_assets.eth.push(account.clone());
+                    1
+                },
+                // dot
+                "646f74" => {
+                    target_account_assets.dot.push(account.clone());
+                    1
+                },
+                _ => {
+                    debug::info!("Invalid key type");
+                    -1
+                },
+            };
+
+            AccountAssets::insert(&target, target_account_assets);
+            
+            ensure!(flag == 1, Error::<T>::InvalidKeyTypeForAccountAsset);
+      
+            Ok(())
         }
     }
 }
