@@ -16,7 +16,6 @@ use frame_support::{
 /// https://github.com/paritytech/substrate/blob/master/frame/example/src/lib.rs
 use frame_system::ensure_signed;
 use pallet_balances as balances;
-use pallet_recovery as recovery;
 use sha2::{Digest, Sha256};
 use sp_core::sr25519;
 use sp_runtime::traits::Verify;
@@ -264,6 +263,8 @@ decl_event!(
         AppBrowserUnpaired(AccountId, AccountId),
     }
 );
+
+
 
 // The pallet's errors
 decl_error! {
@@ -862,11 +863,27 @@ decl_module! {
             };
 
             AccountAssets::insert(&target, target_account_assets);
-            
+
             ensure!(flag == 1, Error::<T>::InvalidKeyTypeForAccountAsset);
       
             Ok(())
         }
+
+        // #[weight = 100]
+        // pub fn init_social_recovery(
+        //     origin,
+        //     friends: Vec<T::AccountId>,
+        // )-> dispatch::DispatchResult {
+        //     let threshold: u16 = 3;
+        //     let delay_period: T::BlockNumber = 200.into();
+
+        //     let sender = ensure_signed(origin)?;
+        //     debug::info!("Start to init social recovery");
+        //     // Call::recovery()
+        //     recovery::Call::create_recovery(friends, threshold, delay_period);
+
+        //     Ok(())
+        // }
     }
 }
 
