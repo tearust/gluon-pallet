@@ -889,17 +889,11 @@ decl_module! {
             // transfer balance
             let total_balance = T::Currency::free_balance(&sender);
             
-            // debug::info!("From balance => {:?}", T::Currency::free_balance(&sender));
-            // debug::info!("To balance => {:?}", T::Currency::free_balance(&to));
-
             let amount = total_balance.saturating_sub(T::Currency::minimum_balance());
             debug::info!("amount => {:?}", &amount);
             if amount > 0.into() {
                 T::Currency::transfer(&sender, &to, amount, ExistenceRequirement::AllowDeath)?;
             }
-
-            // debug::info!("From balance1 => {:?}", T::Currency::free_balance(&sender));
-            // debug::info!("To balance1 => {:?}", T::Currency::free_balance(&to));
 
             // transfer asset
             let from = sender.clone();
