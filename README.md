@@ -24,3 +24,10 @@ pallet of gluon wallet
 ```update_p1_signature```: App sign transaction using P1 and send the signature to layer1, and layer1 verify app account and store the signature temporarily to the block chain. Start task to sign transaction using P2 and remove signature and transaction data from the block chain.
 
 ```update_sign_tx_result```: Layer2 update the task result.
+
+
+## Unit-test
+```
+cd gluon
+cargo test -- --nocapture
+```
