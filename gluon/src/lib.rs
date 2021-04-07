@@ -5,7 +5,7 @@
 use codec::{Decode, Encode};
 use frame_support::{
     debug, decl_error, decl_event, decl_module, decl_storage, dispatch, ensure,
-    traits::{Currency, ExistenceRequirement::AllowDeath},
+    traits::{Currency, ExistenceRequirement},
     StorageMap, StorageValue,
 };
 /// A FRAME pallet template with necessary imports
@@ -20,7 +20,13 @@ use frame_system::ensure_signed;
 use pallet_balances as balances;
 use sha2::{Digest, Sha256};
 // use sp_core::sr25519;
-// use sp_runtime::traits::Verify;
+
+use sp_runtime::{
+	// DispatchError, ModuleId,
+    // traits::{AccountIdConversion, Saturating, Zero},
+    traits::Saturating,
+};
+
 use sp_std::prelude::*;
 
 #[cfg(test)]
@@ -56,13 +62,14 @@ pub type ClientPubKey = Vec<u8>;
 pub type MultiSigAccount = Vec<u8>;
 
 const RUNTIME_ACTIVITY_THRESHOLD: u32 = 3600;
-const MIN_TRANSFER_ASSET_SIGNATURE_COUNT: usize = 2;
-const MAX_TRANSFER_ASSET_TASK_PERIOD: u32 = 100;
+// const MIN_TRANSFER_ASSET_SIGNATURE_COUNT: usize = 2;
+// const MAX_TRANSFER_ASSET_TASK_PERIOD: u32 = 100;
 const TASK_TIMEOUT_PERIOD: u32 = 30;
 
+// type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
+
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug)]
-pub struct AccountAsset {
-    pub account_id: Cid,
+pub struct AccountAssetData {
     pub btc: Vec<Cid>,
     pub eth: Vec<Cid>,
     pub dot: Vec<Cid>,
@@ -140,7 +147,7 @@ decl_storage! {
             map hasher(twox_64_concat) Cid => Vec<T::AccountId>;
 
         AccountAssets get(fn account_assets):
-            map hasher(twox_64_concat) Cid => AccountAsset;
+            map hasher(twox_64_concat) T::AccountId => AccountAssetData;
 
         // Register Gluon wallet account.
         // Temporary storage
@@ -715,125 +722,123 @@ decl_module! {
             Ok(())
         }
 
-        #[weight = 100]
-        pub fn transfer_asset(
-            origin,
-            from: Cid,
-            to: Cid,
-        ) -> dispatch::DispatchResult {
-            let sender = ensure_signed(origin)?;
-            ensure!(from != to, Error::<T>::InvalidToAccount);
-            let current_block_number = <frame_system::Module<T>>::block_number();
-            if TransferAssetTasks::<T>::contains_key(&from) {
-                ensure!(TransferAssetTasks::<T>::get(&from).to == to, Error::<T>::InvalidToAccount);
-                // if timeout, need to remove the transfer-asset task.
-                if TransferAssetTasks::<T>::get(&from).start_height +
-                MAX_TRANSFER_ASSET_TASK_PERIOD.into() < current_block_number {
-                    TransferAssetTasks::<T>::remove(&from);
-                    TransferAssetSignatures::<T>::remove(&from);
-                }
-            }
+        // #[weight = 100]
+        // pub fn transfer_asset(
+        //     origin,
+        //     from: Cid,
+        //     to: Cid,
+        // ) -> dispatch::DispatchResult {
+        //     let sender = ensure_signed(origin)?;
+        //     ensure!(from != to, Error::<T>::InvalidToAccount);
+        //     let current_block_number = <frame_system::Module<T>>::block_number();
+        //     if TransferAssetTasks::<T>::contains_key(&from) {
+        //         ensure!(TransferAssetTasks::<T>::get(&from).to == to, Error::<T>::InvalidToAccount);
+        //         // if timeout, need to remove the transfer-asset task.
+        //         if TransferAssetTasks::<T>::get(&from).start_height +
+        //         MAX_TRANSFER_ASSET_TASK_PERIOD.into() < current_block_number {
+        //             TransferAssetTasks::<T>::remove(&from);
+        //             TransferAssetSignatures::<T>::remove(&from);
+        //         }
+        //     }
 
-            let mut client_from = T::AccountId::default();
-            let account_from = Self::bytes_to_account(&mut from.as_slice());
-            match account_from {
-                Ok(f) => {
-                    client_from = f;
-                }
-                Err(_e) => {
-                    debug::info!("failed to parse client");
-                    Err(Error::<T>::AccountIdConvertionError)?
-                }
-            }
-            let mut client_to = T::AccountId::default();
-            let account_to = Self::bytes_to_account(&mut from.as_slice());
-            match account_to {
-                Ok(t) => {
-                    client_to = t;
-                }
-                Err(_e) => {
-                    debug::info!("failed to parse client");
-                    Err(Error::<T>::AccountIdConvertionError)?
-                }
-            }
+        //     let mut client_from = T::AccountId::default();
+        //     let account_from = Self::bytes_to_account(&mut from.as_slice());
+        //     match account_from {
+        //         Ok(f) => {
+        //             client_from = f;
+        //         }
+        //         Err(_e) => {
+        //             debug::info!("failed to parse client");
+        //             Err(Error::<T>::AccountIdConvertionError)?
+        //         }
+        //     }
+        //     let mut client_to = T::AccountId::default();
+        //     let account_to = Self::bytes_to_account(&mut from.as_slice());
+        //     match account_to {
+        //         Ok(t) => {
+        //             client_to = t;
+        //         }
+        //         Err(_e) => {
+        //             debug::info!("failed to parse client");
+        //             Err(Error::<T>::AccountIdConvertionError)?
+        //         }
+        //     }
 
-            let account_vec = sender.encode();
-            ensure!(account_vec.len() == 32, Error::<T>::AccountIdConvertionError);
+        //     let account_vec = sender.encode();
+        //     ensure!(account_vec.len() == 32, Error::<T>::AccountIdConvertionError);
 
-            if TransferAssetSignatures::<T>::contains_key(&from) {
-                let signatures = TransferAssetSignatures::<T>::get(&from);
-                for sig in signatures.iter() {
-                   ensure!(&sender != sig, Error::<T>::SenderAlreadySigned);
-                }
-                let mut signatures = TransferAssetSignatures::<T>::take(&from);
-                signatures.push(sender.clone());
-                TransferAssetSignatures::<T>::insert(&from, signatures.clone());
-                Self::deposit_event(RawEvent::TransferAssetSign(from.clone(), sender.clone()));
+        //     if TransferAssetSignatures::<T>::contains_key(&from) {
+        //         let signatures = TransferAssetSignatures::<T>::get(&from);
+        //         for sig in signatures.iter() {
+        //            ensure!(&sender != sig, Error::<T>::SenderAlreadySigned);
+        //         }
+        //         let mut signatures = TransferAssetSignatures::<T>::take(&from);
+        //         signatures.push(sender.clone());
+        //         TransferAssetSignatures::<T>::insert(&from, signatures.clone());
+        //         Self::deposit_event(RawEvent::TransferAssetSign(from.clone(), sender.clone()));
 
-                if signatures.len() >= MIN_TRANSFER_ASSET_SIGNATURE_COUNT {
-                   // transfer balance
-                   let total_balance = T::Currency::total_balance(&client_from);
-                   if total_balance > 0.into() {
-                       T::Currency::transfer(&client_from, &client_to, total_balance, AllowDeath)?;
-                       TransferAssetSignatures::<T>::remove(&from);
-                       TransferAssetTasks::<T>::remove(&from);
-                   }
+        //         if signatures.len() >= MIN_TRANSFER_ASSET_SIGNATURE_COUNT {
+        //            // transfer balance
+        //            let total_balance = T::Currency::total_balance(&client_from);
+        //            if total_balance > 0.into() {
+        //                T::Currency::transfer(&client_from, &client_to, total_balance, ExistenceRequirement::AllowDeath)?;
+        //                TransferAssetSignatures::<T>::remove(&from);
+        //                TransferAssetTasks::<T>::remove(&from);
+        //            }
 
-                   // todo transfer btc and other asset
-                   if AccountAssets::contains_key(&from) {
-                       let mut from_account_assets = AccountAssets::take(&from);
-                       if AccountAssets::contains_key(&to) {
-                           let mut to_account_assets = AccountAssets::take(&to);
-                           to_account_assets.btc.append(&mut from_account_assets.btc);
-                           to_account_assets.eth.append(&mut from_account_assets.eth);
-                           to_account_assets.dot.append(&mut from_account_assets.dot);
-                           AccountAssets::insert(&to, to_account_assets);
-                       } else {
-                           AccountAssets::insert(&to, from_account_assets);
-                       }
+        //            // todo transfer btc and other asset
+        //            if AccountAssets::contains_key(&from) {
+        //                let mut from_account_assets = AccountAssets::take(&from);
+        //                if AccountAssets::contains_key(&to) {
+        //                    let mut to_account_assets = AccountAssets::take(&to);
+        //                    to_account_assets.btc.append(&mut from_account_assets.btc);
+        //                    to_account_assets.eth.append(&mut from_account_assets.eth);
+        //                    to_account_assets.dot.append(&mut from_account_assets.dot);
+        //                    AccountAssets::insert(&to, to_account_assets);
+        //                } else {
+        //                    AccountAssets::insert(&to, from_account_assets);
+        //                }
 
-                   }
+        //            }
 
-                   Self::deposit_event(RawEvent::TransferAssetEnd(from.clone(), TransferAssetTasks::<T>::get(&from)));
-                }
-            } else {
-                TransferAssetSignatures::<T>::insert(&from, vec![sender.clone()]);
-            }
+        //            Self::deposit_event(RawEvent::TransferAssetEnd(from.clone(), TransferAssetTasks::<T>::get(&from)));
+        //         }
+        //     } else {
+        //         TransferAssetSignatures::<T>::insert(&from, vec![sender.clone()]);
+        //     }
 
-            if !TransferAssetTasks::<T>::contains_key(&from) {
-               let new_task = TransferAssetTask {
-                   from: from.clone(),
-                    to: to.clone(),
-                    start_height: current_block_number,
-               };
-               TransferAssetTasks::<T>::insert(from.clone(), &new_task);
-               Self::deposit_event(RawEvent::TransferAssetBegin(from.clone(), new_task));
-            }
+        //     if !TransferAssetTasks::<T>::contains_key(&from) {
+        //        let new_task = TransferAssetTask {
+        //            from: from.clone(),
+        //             to: to.clone(),
+        //             start_height: current_block_number,
+        //        };
+        //        TransferAssetTasks::<T>::insert(from.clone(), &new_task);
+        //        Self::deposit_event(RawEvent::TransferAssetBegin(from.clone(), new_task));
+        //     }
 
-            Ok(())
-        }
+        //     Ok(())
+        // }
 
         fn on_finalize(block_number: T::BlockNumber) {
             Self::update_runtime_status(block_number);
         }
 
-        // TODO test method to add account asset, will remove later.
+        // TODO, mock method, replace it with layer2 solution.
         #[weight = 10]
         pub fn test_add_account_asset(
             origin,
-            target: Cid,
             key_type: Vec<u8>,
             account: Cid,
         )-> dispatch::DispatchResult {
-            let _sender = ensure_signed(origin)?;
+            let sender = ensure_signed(origin)?;
 
             let mut target_account_assets = {
-                if AccountAssets::contains_key(&target) {
-                    AccountAssets::take(&target)
+                if AccountAssets::<T>::contains_key(&sender) {
+                    AccountAssets::<T>::take(&sender)
                 }
                 else {
-                    AccountAsset {
-                        account_id: target.clone(),
+                    AccountAssetData {
                         btc: vec![],
                         eth: vec![],
                         dot: vec![],
@@ -864,7 +869,7 @@ decl_module! {
                 },
             };
 
-            AccountAssets::insert(&target, target_account_assets);
+            AccountAssets::<T>::insert(sender.clone(), target_account_assets);
 
             ensure!(flag == 1, Error::<T>::InvalidKeyTypeForAccountAsset);
       
@@ -872,24 +877,42 @@ decl_module! {
         }
 
         #[weight = 1000]
-        pub fn test_transfer_asset(
+        pub fn test_transfer_all_asset(
             origin,
-            from: Cid,
-            to: Cid,
+            to: T::AccountId,
         ) -> dispatch::DispatchResult {
-            let _sender = ensure_signed(origin)?;
+            let sender = ensure_signed(origin)?;
             
-            ensure!(from != to, Error::<T>::InvalidToAccount);
-            if AccountAssets::contains_key(&from) {
-                let mut from_asset = AccountAssets::take(&from);
-                if AccountAssets::contains_key(&to) {
-                    let mut to_asset = AccountAssets::take(&to);
+            ensure!(sender != to, Error::<T>::InvalidToAccount);
+
+            
+            // transfer balance
+            let total_balance = T::Currency::free_balance(&sender);
+            
+            // debug::info!("From balance => {:?}", T::Currency::free_balance(&sender));
+            // debug::info!("To balance => {:?}", T::Currency::free_balance(&to));
+
+            let amount = total_balance.saturating_sub(T::Currency::minimum_balance());
+            debug::info!("amount => {:?}", &amount);
+            if amount > 0.into() {
+                T::Currency::transfer(&sender, &to, amount, ExistenceRequirement::AllowDeath)?;
+            }
+
+            // debug::info!("From balance1 => {:?}", T::Currency::free_balance(&sender));
+            // debug::info!("To balance1 => {:?}", T::Currency::free_balance(&to));
+
+            // transfer asset
+            let from = sender.clone();
+            if AccountAssets::<T>::contains_key(&from) {
+                let mut from_asset = AccountAssets::<T>::take(&from);
+                if AccountAssets::<T>::contains_key(&to) {
+                    let mut to_asset = AccountAssets::<T>::take(&to);
                     to_asset.btc.append(&mut from_asset.btc);
                     to_asset.eth.append(&mut from_asset.eth);
                     to_asset.dot.append(&mut from_asset.dot);
-                    AccountAssets::insert(&to, to_asset);
+                    AccountAssets::<T>::insert(&to, to_asset);
                 } else {
-                    AccountAssets::insert(&to, from_asset);
+                    AccountAssets::<T>::insert(&to, from_asset);
                 }
             }
 
