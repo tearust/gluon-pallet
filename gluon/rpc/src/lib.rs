@@ -7,7 +7,7 @@ use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_runtime::{generic::BlockId, traits::Block as BlockT};
 use std::sync::Arc;
-use codec::{Codec, Decode, Encode};
+use codec::Codec;
 
 #[rpc]
 pub trait GluonApi<BlockHash, AccountGenerationDataWithoutP3> {

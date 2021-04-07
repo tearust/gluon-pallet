@@ -3,7 +3,8 @@
 #![allow(clippy::unnecessary_mut_passed)]
 
 use sp_std::prelude::*;
-use codec::{Codec, Decode, Encode};
+// use codec::{Codec, Decode, Encode};
+use codec::Codec;
 
 // Here we declare the runtime API. It is implemented it the `impl` block in
 // runtime amalgamator file (the `runtime/src/lib.rs`)

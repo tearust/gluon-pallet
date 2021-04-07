@@ -1,5 +1,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
+#[allow(dead_code)]
+
 use codec::{Decode, Encode};
 use frame_support::{
     debug, decl_error, decl_event, decl_module, decl_storage, dispatch, ensure,
@@ -17,8 +19,8 @@ use frame_support::{
 use frame_system::ensure_signed;
 use pallet_balances as balances;
 use sha2::{Digest, Sha256};
-use sp_core::sr25519;
-use sp_runtime::traits::Verify;
+// use sp_core::sr25519;
+// use sp_runtime::traits::Verify;
 use sp_std::prelude::*;
 
 #[cfg(test)]
@@ -682,11 +684,11 @@ decl_module! {
         ) -> dispatch::DispatchResult {
             let sender = ensure_signed(origin)?;
 
-            let mut delegator_tea_id = [0u8; 32];
+            let mut _delegator_tea_id = [0u8; 32];
             let public_key_bytes = Self::account_to_bytes(&sender);
             match public_key_bytes {
                 Ok(p) => {
-                    delegator_tea_id = p;
+                    _delegator_tea_id = p;
                 }
                 Err(_e) => {
                     debug::info!("failed to parse account");
@@ -823,7 +825,7 @@ decl_module! {
             key_type: Vec<u8>,
             account: Cid,
         )-> dispatch::DispatchResult {
-            let sender = ensure_signed(origin)?;
+            let _sender = ensure_signed(origin)?;
 
             let mut target_account_assets = {
                 if AccountAssets::contains_key(&target) {
@@ -869,21 +871,32 @@ decl_module! {
             Ok(())
         }
 
-        // #[weight = 100]
-        // pub fn init_social_recovery(
-        //     origin,
-        //     friends: Vec<T::AccountId>,
-        // )-> dispatch::DispatchResult {
-        //     let threshold: u16 = 3;
-        //     let delay_period: T::BlockNumber = 200.into();
+        #[weight = 1000]
+        pub fn test_transfer_asset(
+            origin,
+            from: Cid,
+            to: Cid,
+        ) -> dispatch::DispatchResult {
+            let _sender = ensure_signed(origin)?;
+            
+            ensure!(from != to, Error::<T>::InvalidToAccount);
+            if AccountAssets::contains_key(&from) {
+                let mut from_asset = AccountAssets::take(&from);
+                if AccountAssets::contains_key(&to) {
+                    let mut to_asset = AccountAssets::take(&to);
+                    to_asset.btc.append(&mut from_asset.btc);
+                    to_asset.eth.append(&mut from_asset.eth);
+                    to_asset.dot.append(&mut from_asset.dot);
+                    AccountAssets::insert(&to, to_asset);
+                } else {
+                    AccountAssets::insert(&to, from_asset);
+                }
+            }
 
-        //     let sender = ensure_signed(origin)?;
-        //     debug::info!("Start to init social recovery");
-        //     // Call::recovery()
-        //     recovery::Call::create_recovery(friends, threshold, delay_period);
 
-        //     Ok(())
-        // }
+            Ok(())
+        }
+        
     }
 }
 
