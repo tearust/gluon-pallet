@@ -528,9 +528,9 @@ decl_module! {
                 // ensure!(delegator_nonce_hash == history_delegator_nonce_hash.as_slice(), Error::<T>::InvalidSig);
 
                 let asset_info = Asset {
-                    owner: sender.clone(),
-                    p2: p2.clone(),
-                    deployment_ids: p2_deployment_ids.clone(),
+                    owner: sender,
+                    p2: p2,
+                    deployment_ids: p2_deployment_ids,
                     web: T::AccountId::default(),
                     app: T::AccountId::default(),
                     multi_sig_account: Vec::new(),
@@ -553,21 +553,21 @@ decl_module! {
                 let (app, _) = BrowserAppPair::<T>::get(&browser);
 
                 let asset_info = Asset {
-                    owner: sender.clone(),
-                    p2: p2.clone(),
-                    deployment_ids: p2_deployment_ids.clone(),
+                    owner: sender,
+                    p2: p2,
+                    deployment_ids: p2_deployment_ids,
                     web: browser.clone(),
-                    app: app.clone(),
+                    app: app,
                     multi_sig_account: multi_sig_account.clone(),
                     data_adhoc: task
                 };
 
                 if BrowserMultiSigAccounts::<T>::contains_key(&browser) {
-                    BrowserMultiSigAccounts::<T>::insert(browser.clone(), vec![multi_sig_account.clone()]);
+                    BrowserMultiSigAccounts::<T>::insert(browser, vec![multi_sig_account.clone()]);
                 } else {
                     let mut accounts = BrowserMultiSigAccounts::<T>::take(&browser);
                     accounts.push(multi_sig_account.clone());
-                    BrowserMultiSigAccounts::<T>::insert(browser.clone(), accounts.clone());
+                    BrowserMultiSigAccounts::<T>::insert(browser, accounts);
                 }
 
                 Assets::<T>::insert(multi_sig_account.clone(), asset_info.clone());
@@ -633,7 +633,7 @@ decl_module! {
                 SignTransactionTasks::remove(&task_id);
                 SignTransactionTaskSender::<T>::remove(&task_id);
                 debug::info!("browser task timeout");
-                Err(Error::<T>::TaskTimeout)?
+                return Err(Error::<T>::TaskTimeout.into());
             }
 
 
@@ -676,7 +676,7 @@ decl_module! {
             let delegator_nonce_hash = Self::sha2_256(&delegator_nonce);
             ensure!(task.delegator_nonce_hash.as_slice() == delegator_nonce_hash, Error::<T>::InvalidSig);
 
-            SignTransactionResults::insert(task_id.clone(), succeed.clone());
+            SignTransactionResults::insert(task_id.clone(), succeed);
             SignTransactionTasks::remove(&task_id);
             SignTransactionTaskSender::<T>::remove(&task_id);
             Self::deposit_event(RawEvent::UpdateSignTransaction(task_id, succeed));
@@ -699,7 +699,7 @@ decl_module! {
                 }
                 Err(_e) => {
                     debug::info!("failed to parse account");
-                    Err(Error::<T>::AccountIdConvertionError)?
+                    return Err(Error::<T>::AccountIdConvertionError.into());
                 }
             }
             // todo how to check delegator pubkey with layer1 account
