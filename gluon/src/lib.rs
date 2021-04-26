@@ -206,9 +206,9 @@ impl<T: Trait> Module<T> {
         let mut index: u32 = 0;
         for (d, b) in delegates {
             if current_block_number - b < RUNTIME_ACTIVITY_THRESHOLD.into() {
-                index = index + 1;
+                index += 1;
                 if index > start {
-                    result.push(d.into());
+                    result.push(d);
                     let size = result.len();
                     let delegates_count = count as usize;
                     if size == delegates_count {
@@ -243,12 +243,12 @@ impl<T: Trait> Module<T> {
         debug::info!("task_data:{:?}", task_data);
         debug::info!("task_hash_str:{}", task_hash_str);
 
-        return task_data.to_vec();
+        task_data.to_vec()
     }
 
     pub fn encode_task1(task: AccountGenerationDataWithoutP3) -> Vec<u8> {
         let task_data = task.encode();
-        return task_data.to_vec();
+        task_data.to_vec()
     }
 }
 
@@ -353,15 +353,15 @@ decl_module! {
             ensure!(!AppBrowserPair::<T>::contains_key(&sender), Error::<T>::AppBrowserPairAlreadyExist);
 
             // check browser is not paired.
-            let mut browser_account = T::AccountId::default();
-            let browser = Self::bytes_to_account(&mut browser_pk.as_slice());
+            let browser_account;
+            let browser = Self::bytes_to_account(&browser_pk.as_slice());
             match browser {
                 Ok(p) => {
                     browser_account = p;
                 }
                 Err(_e) => {
                     debug::info!("failed to parse browser pubKey");
-                    Err(Error::<T>::AccountIdConvertionError)?
+                    return Err(Error::<T>::AccountIdConvertionError.into());
                 }
             }
             ensure!(!BrowserAppPair::<T>::contains_key(&browser_account), Error::<T>::AppBrowserPairAlreadyExist);
@@ -374,7 +374,7 @@ decl_module! {
             if current_block_number - block_number > TASK_TIMEOUT_PERIOD.into() {
                 BrowserNonce::<T>::remove(&browser_account);
                 debug::info!("browser task timeout");
-                Err(Error::<T>::TaskTimeout)?
+                return Err(Error::<T>::TaskTimeout.into());
             }
             ensure!(browser_nonce_hash == app_nonce_hash, Error::<T>::NonceNotMatch);
 
@@ -407,7 +407,7 @@ decl_module! {
                 Self::deposit_event(RawEvent::AppBrowserUnpaired(sender, browser));
             } else {
                 debug::info!("failed to unpair");
-                Err(Error::<T>::PairNotExist)?
+                return Err(Error::<T>::PairNotExist.into());
             }
 
             Ok(())
@@ -446,22 +446,22 @@ decl_module! {
             let sender = ensure_signed(origin)?;
 
             // check browser is not paired.
-            let mut browser_account = T::AccountId::default();
-            let browser = Self::bytes_to_account(&mut browser_pk.as_slice());
+            let browser_account;
+            let browser = Self::bytes_to_account(&browser_pk.as_slice());
             match browser {
                 Ok(p) => {
                     browser_account = p;
                 }
                 Err(_e) => {
                     debug::info!("failed to parse browser pubKey");
-                    Err(Error::<T>::AccountIdConvertionError)?
+                    return Err(Error::<T>::AccountIdConvertionError.into());
                 }
             }
             ensure!(BrowserAccountNonce::<T>::contains_key(&browser_account), Error::<T>::NonceNotExist);
 
             // check task hash
             let task = AccountGenerationDataWithoutP3 {
-                key_type: key_type.clone(),
+                key_type: key_type,
                 n: p2_n,
                 k: p2_k,
                 delegator_nonce_hash: delegator_nonce_hash.clone(),
@@ -484,11 +484,11 @@ decl_module! {
             if current_block_number - block_number > TASK_TIMEOUT_PERIOD.into() {
                 BrowserAccountNonce::<T>::remove(&browser_account);
                 debug::info!("browser task timeout");
-                Err(Error::<T>::TaskTimeout)?
+                return Err(Error::<T>::TaskTimeout.into());
             }
 
             // account generation requested and fire an event
-            AccountGenerationTaskDelegator::<T>::insert(browser_task_hash.clone(), (delegator_nonce_hash.clone(), browser_account.clone()));
+            AccountGenerationTaskDelegator::<T>::insert(browser_task_hash.clone(), (delegator_nonce_hash, browser_account.clone()));
             AccountGenerationTasks::insert(browser_task_hash.clone(), task.clone());
             BrowserAccountNonce::<T>::remove(&browser_account);
             Self::deposit_event(RawEvent::AccountGenerationRequested(sender, browser_task_hash, task));
