@@ -206,9 +206,9 @@ impl<T: Trait> Module<T> {
         let mut index: u32 = 0;
         for (d, b) in delegates {
             if current_block_number - b < RUNTIME_ACTIVITY_THRESHOLD.into() {
-                index = index + 1;
+                index += 1;
                 if index > start {
-                    result.push(d.into());
+                    result.push(d);
                     let size = result.len();
                     let delegates_count = count as usize;
                     if size == delegates_count {
@@ -229,12 +229,12 @@ impl<T: Trait> Module<T> {
         p1: Vec<u8>,
     ) -> Vec<u8> {
         let task = AccountGenerationDataWithoutP3 {
-            key_type: key_type,
-            n: n,
-            k: k,
-            delegator_nonce_hash: delegator_nonce_hash,
-            delegator_nonce_rsa: delegator_nonce_rsa,
-            p1: p1,
+            key_type,
+            n,
+            k,
+            delegator_nonce_hash,
+            delegator_nonce_rsa,
+            p1,
         };
         let task_data = task.encode();
 
@@ -243,12 +243,12 @@ impl<T: Trait> Module<T> {
         debug::info!("task_data:{:?}", task_data);
         debug::info!("task_hash_str:{}", task_hash_str);
 
-        return task_data.to_vec();
+        task_data.to_vec()
     }
 
     pub fn encode_task1(task: AccountGenerationDataWithoutP3) -> Vec<u8> {
         let task_data = task.encode();
-        return task_data.to_vec();
+        task_data.to_vec()
     }
 }
 
@@ -353,15 +353,15 @@ decl_module! {
             ensure!(!AppBrowserPair::<T>::contains_key(&sender), Error::<T>::AppBrowserPairAlreadyExist);
 
             // check browser is not paired.
-            let mut browser_account = T::AccountId::default();
-            let browser = Self::bytes_to_account(&mut browser_pk.as_slice());
+            let browser_account;
+            let browser = Self::bytes_to_account(&browser_pk.as_slice());
             match browser {
                 Ok(p) => {
                     browser_account = p;
                 }
                 Err(_e) => {
                     debug::info!("failed to parse browser pubKey");
-                    Err(Error::<T>::AccountIdConvertionError)?
+                    return Err(Error::<T>::AccountIdConvertionError.into());
                 }
             }
             ensure!(!BrowserAppPair::<T>::contains_key(&browser_account), Error::<T>::AppBrowserPairAlreadyExist);
@@ -374,7 +374,7 @@ decl_module! {
             if current_block_number - block_number > TASK_TIMEOUT_PERIOD.into() {
                 BrowserNonce::<T>::remove(&browser_account);
                 debug::info!("browser task timeout");
-                Err(Error::<T>::TaskTimeout)?
+                return Err(Error::<T>::TaskTimeout.into());
             }
             ensure!(browser_nonce_hash == app_nonce_hash, Error::<T>::NonceNotMatch);
 
@@ -407,7 +407,7 @@ decl_module! {
                 Self::deposit_event(RawEvent::AppBrowserUnpaired(sender, browser));
             } else {
                 debug::info!("failed to unpair");
-                Err(Error::<T>::PairNotExist)?
+                return Err(Error::<T>::PairNotExist.into());
             }
 
             Ok(())
@@ -446,27 +446,27 @@ decl_module! {
             let sender = ensure_signed(origin)?;
 
             // check browser is not paired.
-            let mut browser_account = T::AccountId::default();
-            let browser = Self::bytes_to_account(&mut browser_pk.as_slice());
+            let browser_account;
+            let browser = Self::bytes_to_account(&browser_pk.as_slice());
             match browser {
                 Ok(p) => {
                     browser_account = p;
                 }
                 Err(_e) => {
                     debug::info!("failed to parse browser pubKey");
-                    Err(Error::<T>::AccountIdConvertionError)?
+                    return Err(Error::<T>::AccountIdConvertionError.into());
                 }
             }
             ensure!(BrowserAccountNonce::<T>::contains_key(&browser_account), Error::<T>::NonceNotExist);
 
             // check task hash
             let task = AccountGenerationDataWithoutP3 {
-                key_type: key_type.clone(),
+                key_type,
                 n: p2_n,
                 k: p2_k,
                 delegator_nonce_hash: delegator_nonce_hash.clone(),
-                delegator_nonce_rsa: delegator_nonce_rsa,
-                p1: p1,
+                delegator_nonce_rsa,
+                p1,
             };
             let app_nonce_hash = Self::sha2_256(&nonce.as_slice());
             let (block_number, browser_nonce_hash, browser_task_hash) = BrowserAccountNonce::<T>::get(&browser_account);
@@ -484,11 +484,11 @@ decl_module! {
             if current_block_number - block_number > TASK_TIMEOUT_PERIOD.into() {
                 BrowserAccountNonce::<T>::remove(&browser_account);
                 debug::info!("browser task timeout");
-                Err(Error::<T>::TaskTimeout)?
+                return Err(Error::<T>::TaskTimeout.into());
             }
 
             // account generation requested and fire an event
-            AccountGenerationTaskDelegator::<T>::insert(browser_task_hash.clone(), (delegator_nonce_hash.clone(), browser_account.clone()));
+            AccountGenerationTaskDelegator::<T>::insert(browser_task_hash.clone(), (delegator_nonce_hash, browser_account.clone()));
             AccountGenerationTasks::insert(browser_task_hash.clone(), task.clone());
             BrowserAccountNonce::<T>::remove(&browser_account);
             Self::deposit_event(RawEvent::AccountGenerationRequested(sender, browser_task_hash, task));
@@ -528,9 +528,9 @@ decl_module! {
                 // ensure!(delegator_nonce_hash == history_delegator_nonce_hash.as_slice(), Error::<T>::InvalidSig);
 
                 let asset_info = Asset {
-                    owner: sender.clone(),
-                    p2: p2.clone(),
-                    deployment_ids: p2_deployment_ids.clone(),
+                    owner: sender,
+                    p2,
+                    deployment_ids: p2_deployment_ids,
                     web: T::AccountId::default(),
                     app: T::AccountId::default(),
                     multi_sig_account: Vec::new(),
@@ -553,21 +553,21 @@ decl_module! {
                 let (app, _) = BrowserAppPair::<T>::get(&browser);
 
                 let asset_info = Asset {
-                    owner: sender.clone(),
-                    p2: p2.clone(),
-                    deployment_ids: p2_deployment_ids.clone(),
+                    owner: sender,
+                    p2,
+                    deployment_ids: p2_deployment_ids,
                     web: browser.clone(),
-                    app: app.clone(),
+                    app,
                     multi_sig_account: multi_sig_account.clone(),
                     data_adhoc: task
                 };
 
                 if BrowserMultiSigAccounts::<T>::contains_key(&browser) {
-                    BrowserMultiSigAccounts::<T>::insert(browser.clone(), vec![multi_sig_account.clone()]);
+                    BrowserMultiSigAccounts::<T>::insert(browser, vec![multi_sig_account.clone()]);
                 } else {
                     let mut accounts = BrowserMultiSigAccounts::<T>::take(&browser);
                     accounts.push(multi_sig_account.clone());
-                    BrowserMultiSigAccounts::<T>::insert(browser.clone(), accounts.clone());
+                    BrowserMultiSigAccounts::<T>::insert(browser, accounts);
                 }
 
                 Assets::<T>::insert(multi_sig_account.clone(), asset_info.clone());
@@ -590,9 +590,9 @@ decl_module! {
             ensure!(BrowserAppPair::<T>::contains_key(&sender), Error::<T>::AppBrowserPairNotExist);
 
             let task = SignTransactionData {
-                data_adhoc: data_adhoc,
-                delegator_nonce_hash: delegator_nonce_hash,
-                delegator_nonce_rsa: delegator_nonce_rsa,
+                data_adhoc,
+                delegator_nonce_hash,
+                delegator_nonce_rsa,
             };
             let task_data = task.encode();
             let task_id = Self::sha2_256(&task_data).to_vec();
@@ -633,15 +633,15 @@ decl_module! {
                 SignTransactionTasks::remove(&task_id);
                 SignTransactionTaskSender::<T>::remove(&task_id);
                 debug::info!("browser task timeout");
-                Err(Error::<T>::TaskTimeout)?
+                return Err(Error::<T>::TaskTimeout.into());
             }
 
 
             let task = SignTransactionTasks::get(&task_id);
             let task_info = SignTransactionTask {
-                task_id: task_id,
-                multisig_address: multisig_address,
-                p1_signature: p1_signature,
+                task_id,
+                multisig_address,
+                p1_signature,
                 task_data: task,
             };
 
@@ -676,7 +676,7 @@ decl_module! {
             let delegator_nonce_hash = Self::sha2_256(&delegator_nonce);
             ensure!(task.delegator_nonce_hash.as_slice() == delegator_nonce_hash, Error::<T>::InvalidSig);
 
-            SignTransactionResults::insert(task_id.clone(), succeed.clone());
+            SignTransactionResults::insert(task_id.clone(), succeed);
             SignTransactionTasks::remove(&task_id);
             SignTransactionTaskSender::<T>::remove(&task_id);
             Self::deposit_event(RawEvent::UpdateSignTransaction(task_id, succeed));
@@ -699,7 +699,7 @@ decl_module! {
                 }
                 Err(_e) => {
                     debug::info!("failed to parse account");
-                    Err(Error::<T>::AccountIdConvertionError)?
+                    return Err(Error::<T>::AccountIdConvertionError.into());
                 }
             }
             // todo how to check delegator pubkey with layer1 account

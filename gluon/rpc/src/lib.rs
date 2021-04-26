@@ -1,5 +1,4 @@
 //! RPC interface for the transaction payment module.
-
 use gluon_runtime_api::GluonApi as GluonRuntimeApi;
 use jsonrpc_core::{Error as RpcError, ErrorCode, Result};
 use jsonrpc_derive::rpc;
@@ -9,7 +8,10 @@ use sp_runtime::{generic::BlockId, traits::Block as BlockT};
 use std::sync::Arc;
 use codec::Codec;
 
+
+
 #[rpc]
+#[allow(clippy::too_many_arguments)]
 pub trait GluonApi<BlockHash, AccountGenerationDataWithoutP3> {
     #[rpc(name = "gluon_getDelegates")]
     fn get_delegates(&self, start: u32, count: u32, at: Option<BlockHash>)
