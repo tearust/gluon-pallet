@@ -229,12 +229,12 @@ impl<T: Trait> Module<T> {
         p1: Vec<u8>,
     ) -> Vec<u8> {
         let task = AccountGenerationDataWithoutP3 {
-            key_type: key_type,
-            n: n,
-            k: k,
-            delegator_nonce_hash: delegator_nonce_hash,
-            delegator_nonce_rsa: delegator_nonce_rsa,
-            p1: p1,
+            key_type,
+            n,
+            k,
+            delegator_nonce_hash,
+            delegator_nonce_rsa,
+            p1,
         };
         let task_data = task.encode();
 
@@ -461,12 +461,12 @@ decl_module! {
 
             // check task hash
             let task = AccountGenerationDataWithoutP3 {
-                key_type: key_type,
+                key_type,
                 n: p2_n,
                 k: p2_k,
                 delegator_nonce_hash: delegator_nonce_hash.clone(),
-                delegator_nonce_rsa: delegator_nonce_rsa,
-                p1: p1,
+                delegator_nonce_rsa,
+                p1,
             };
             let app_nonce_hash = Self::sha2_256(&nonce.as_slice());
             let (block_number, browser_nonce_hash, browser_task_hash) = BrowserAccountNonce::<T>::get(&browser_account);
@@ -529,7 +529,7 @@ decl_module! {
 
                 let asset_info = Asset {
                     owner: sender,
-                    p2: p2,
+                    p2,
                     deployment_ids: p2_deployment_ids,
                     web: T::AccountId::default(),
                     app: T::AccountId::default(),
@@ -554,10 +554,10 @@ decl_module! {
 
                 let asset_info = Asset {
                     owner: sender,
-                    p2: p2,
+                    p2,
                     deployment_ids: p2_deployment_ids,
                     web: browser.clone(),
-                    app: app,
+                    app,
                     multi_sig_account: multi_sig_account.clone(),
                     data_adhoc: task
                 };
@@ -590,7 +590,7 @@ decl_module! {
             ensure!(BrowserAppPair::<T>::contains_key(&sender), Error::<T>::AppBrowserPairNotExist);
 
             let task = SignTransactionData {
-                data_adhoc: data_adhoc,
+                data_adhoc,
                 delegator_nonce_hash,
                 delegator_nonce_rsa,
             };

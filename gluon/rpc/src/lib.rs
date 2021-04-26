@@ -8,9 +8,10 @@ use sp_runtime::{generic::BlockId, traits::Block as BlockT};
 use std::sync::Arc;
 use codec::Codec;
 
-#[allow(clippy::too_many_arguments)]
+
 
 #[rpc]
+#[allow(clippy::too_many_arguments)]
 pub trait GluonApi<BlockHash, AccountGenerationDataWithoutP3> {
     #[rpc(name = "gluon_getDelegates")]
     fn get_delegates(&self, start: u32, count: u32, at: Option<BlockHash>)
