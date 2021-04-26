@@ -850,17 +850,17 @@ decl_module! {
             let flag: i8 = match hex::encode(key_type).as_str() {
                 // btc
                 "627463" => {
-                    target_account_assets.btc.push(account.clone());
+                    target_account_assets.btc.push(account);
                     1
                 },
                 // eth
                 "657468" => {
-                    target_account_assets.eth.push(account.clone());
+                    target_account_assets.eth.push(account);
                     1
                 },
                 // dot
                 "646f74" => {
-                    target_account_assets.dot.push(account.clone());
+                    target_account_assets.dot.push(account);
                     1
                 },
                 _ => {
@@ -869,7 +869,7 @@ decl_module! {
                 },
             };
 
-            AccountAssets::<T>::insert(sender.clone(), target_account_assets);
+            AccountAssets::<T>::insert(sender, target_account_assets);
 
             ensure!(flag == 1, Error::<T>::InvalidKeyTypeForAccountAsset);
       
@@ -896,7 +896,7 @@ decl_module! {
             }
 
             // transfer asset
-            let from = sender.clone();
+            let from = sender;
             if AccountAssets::<T>::contains_key(&from) {
                 let mut from_asset = AccountAssets::<T>::take(&from);
                 if AccountAssets::<T>::contains_key(&to) {
@@ -921,7 +921,7 @@ impl<T: Trait> Module<T> {
     fn bytes_to_account(mut account_bytes: &[u8]) -> Result<T::AccountId, Error<T>> {
         match T::AccountId::decode(&mut account_bytes) {
             Ok(client) => {
-                return Ok(client);
+                Ok(client)
             }
             Err(_e) => Err(Error::<T>::AccountIdConvertionError),
         }
