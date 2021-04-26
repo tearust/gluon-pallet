@@ -591,8 +591,8 @@ decl_module! {
 
             let task = SignTransactionData {
                 data_adhoc: data_adhoc,
-                delegator_nonce_hash: delegator_nonce_hash,
-                delegator_nonce_rsa: delegator_nonce_rsa,
+                delegator_nonce_hash,
+                delegator_nonce_rsa,
             };
             let task_data = task.encode();
             let task_id = Self::sha2_256(&task_data).to_vec();
@@ -639,9 +639,9 @@ decl_module! {
 
             let task = SignTransactionTasks::get(&task_id);
             let task_info = SignTransactionTask {
-                task_id: task_id,
-                multisig_address: multisig_address,
-                p1_signature: p1_signature,
+                task_id,
+                multisig_address,
+                p1_signature,
                 task_data: task,
             };
 
