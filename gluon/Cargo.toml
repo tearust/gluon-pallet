@@ -35,6 +35,9 @@ sp-runtime = { default-features = false, version = '2.0.0' }
 sha2 = { version = "0.8.0", default-features = false }
 hex = {default-features = false, version = "0.4.2"}
 
+pallet-recovery = { default-features = false, version = '2.0.0' }
+# pallet-recovery = { default-features = false, version = '2.0.0', path = '../../tea-layer1/pallets/recovery' }
+
 
 [dev-dependencies]
 serde_json = "1.0"
@@ -52,5 +55,6 @@ std = [
     'sp-runtime/std',
     'serde',
     'pallet-balances/std',
+    'pallet-recovery/std',
 ]
 

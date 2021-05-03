@@ -18,6 +18,7 @@ use frame_support::{
 /// https://github.com/paritytech/substrate/blob/master/frame/example/src/lib.rs
 use frame_system::ensure_signed;
 use pallet_balances as balances;
+use pallet_recovery as recovery;
 use sha2::{Digest, Sha256};
 // use sp_core::sr25519;
 
@@ -39,10 +40,11 @@ mod tests;
 use serde::{Deserialize, Serialize};
 
 /// The pallet's configuration trait.
-pub trait Trait: balances::Trait {
+pub trait Trait: balances::Trait + recovery::Trait {
     type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
 
     type Currency: Currency<Self::AccountId>;
+
 }
 
 pub type TeaPubKey = [u8; 32];
@@ -74,6 +76,9 @@ pub struct AccountAssetData {
     pub eth: Vec<Cid>,
     pub dot: Vec<Cid>,
 }
+
+// #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug)]
+// pub struct AssetDetails
 
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, Debug)]
 pub struct TransferAssetTask<BlockNumber> {
@@ -309,6 +314,8 @@ decl_error! {
         TaskTimeout,
         PairNotExist,
         InvalidKeyTypeForAccountAsset,
+
+        AssetSuspend,
     }
 }
 
@@ -838,6 +845,8 @@ decl_module! {
                     AccountAssets::<T>::take(&sender)
                 }
                 else {
+
+                    // TODO Those assets were mock for now. wait layer2 ready to come true.
                     AccountAssetData {
                         btc: vec![],
                         eth: vec![],
@@ -848,6 +857,8 @@ decl_module! {
             };
 
             let flag: i8 = match hex::encode(key_type).as_str() {
+                // TODO check exist.
+
                 // btc
                 "627463" => {
                     target_account_assets.btc.push(account);
@@ -885,14 +896,18 @@ decl_module! {
             
             ensure!(sender != to, Error::<T>::InvalidToAccount);
 
+            // check is recoveriable
+            let flag = Self::can_transfer_asset(&sender, &to);
+            debug::info!("----- : {:?}", flag); 
+            ensure!(flag == true, Error::<T>::AssetSuspend);
             
             // transfer balance
-            let total_balance = T::Currency::free_balance(&sender);
+            let total_balance = <T as Trait>::Currency::free_balance(&sender);
             
-            let amount = total_balance.saturating_sub(T::Currency::minimum_balance());
+            let amount = total_balance.saturating_sub(<T as Trait>::Currency::minimum_balance());
             debug::info!("amount => {:?}", &amount);
             if amount > 0.into() {
-                T::Currency::transfer(&sender, &to, amount, ExistenceRequirement::AllowDeath)?;
+                <T as Trait>::Currency::transfer(&sender, &to, amount, ExistenceRequirement::AllowDeath)?;
             }
 
             // transfer asset
@@ -955,4 +970,25 @@ impl<T: Trait> Module<T> {
     //     let signature = sr25519::Signature::from_raw(bytes);
     //     return signature.verify(&data[..], &pubkey);
     // }
+
+    pub fn can_transfer_asset(
+        from: &T::AccountId, 
+        to: &T::AccountId
+    ) -> bool {
+
+        let mut rs = false;
+        if let Some(recovery_config) = pallet_recovery::Module::<T>::recovery_config(&from) {
+            debug::info!("recovery_config : {:?}", recovery_config); 
+
+            if let Some(active_recovery) = pallet_recovery::Module::<T>::active_recovery(&from, &to) {
+                debug::info!("active_recovery : {:?}", active_recovery);
+
+                rs = true;
+            }
+        } else {
+            rs = true;
+        }
+
+        rs
+    }
 }
