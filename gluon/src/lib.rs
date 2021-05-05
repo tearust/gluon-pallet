@@ -976,17 +976,15 @@ impl<T: Trait> Module<T> {
         to: &T::AccountId
     ) -> bool {
 
-        let mut rs = false;
-        if let Some(recovery_config) = pallet_recovery::Module::<T>::recovery_config(&from) {
-            debug::info!("recovery_config : {:?}", recovery_config); 
+        let mut rs = true;
+        if let list = pallet_recovery::Module::<T>::active_recovery_for_original(&from) {
+            debug::info!("active_recovery_for_original : {:?}", list); 
+            if list.len() > 0 {
 
-            if let Some(active_recovery) = pallet_recovery::Module::<T>::active_recovery(&from, &to) {
-                debug::info!("active_recovery : {:?}", active_recovery);
-
-                rs = true;
+                if None == pallet_recovery::Module::<T>::active_recovery(&from, &to) {
+                    rs = false;
+                }
             }
-        } else {
-            rs = true;
         }
 
         rs
